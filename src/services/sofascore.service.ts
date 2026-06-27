@@ -24,6 +24,17 @@ function getYesterdayDate(): string {
   return d.toISOString().split('T')[0];
 }
 
+function dateRangeArray(from: string, to: string): string[] {
+  const dates: string[] = [];
+  const current = new Date(from);
+  const end = new Date(to);
+  while (current <= end) {
+    dates.push(current.toISOString().split('T')[0]);
+    current.setDate(current.getDate() + 1);
+  }
+  return dates;
+}
+
 export const sofascoreService = {
   // ── Matches ────────────────────────────────────────────────────────────────
   getLiveMatches: () => makeRequest(endpoint(`/eventsday.php?d=${getTodayDate()}&s=Soccer`)),
@@ -38,6 +49,26 @@ export const sofascoreService = {
   getMatchH2H: (id: string) => makeRequest(endpoint(`/searchevents.php?e=${id}`)),
   getMatchOdds: (id: string) => makeRequest(endpoint(`/lookupevent.php?id=${id}`)),
   getMatchPredictions: (id: string) => makeRequest(endpoint(`/lookupevent.php?id=${id}`)),
+
+  // Get events across a date range (TheSportsDB free tier only returns 3/day)
+  getScheduledEventsRange: async (from: string, to: string) => {
+    const dates = dateRangeArray(from, to);
+    const allEvents: any[] = [];
+    const errors: string[] = [];
+
+    for (const date of dates) {
+      try {
+        const data = await makeRequest(endpoint(`/eventsday.php?d=${date}&s=Soccer`));
+        if (data && data.events && Array.isArray(data.events)) {
+          allEvents.push(...data.events);
+        }
+      } catch (error: any) {
+        errors.push(`${date}: ${error.message}`);
+      }
+    }
+
+    return { events: allEvents, datesQueried: dates.length, errors };
+  },
 
   // ── Competitions ───────────────────────────────────────────────────────────
   getCompetitions: () => makeRequest(endpoint(`/all_leagues.php`)),
