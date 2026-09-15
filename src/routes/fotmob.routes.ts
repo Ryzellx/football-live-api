@@ -11,6 +11,7 @@ router.get('/matches/range', fotmobController.getMatchesByRange);
 
 // Liga
 router.get('/leagues', fotmobController.getAllLeagues);
+router.get('/leagues/grouped', fotmobController.getLeaguesGrouped);
 router.get('/league/:id', fotmobController.getLeagueDetail);
 router.get('/league/:id/overview', fotmobController.getLeagueOverview);
 router.get('/league/:id/table', fotmobController.getLeagueTable);

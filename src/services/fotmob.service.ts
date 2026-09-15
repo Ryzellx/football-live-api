@@ -16,7 +16,8 @@ export async function getMatchesByDate(date: string, timezone = 'Asia/Jakarta', 
   const key = `matches:${ymd}:${timezone}:${ccode3}`;
   const hit = getCache(key, TTL.matches);
   if (hit) return hit;
-  const data = await fotmobGet(`/data/matches?date=${ymd}&timezone=${encodeURIComponent(timezone)}&ccode3=${ccode3}`);
+  const raw: any = await fotmobGet(`/data/matches?date=${ymd}&timezone=${encodeURIComponent(timezone)}&ccode3=${ccode3}`);
+  const data = withLogos(raw);
   setCache(key, data);
   return data;
 }
@@ -74,14 +75,14 @@ export async function getNotableMatches(lang = 'en-GB', country = 'GBR'): Promis
   return data;
 }
 
-function dateRangeArray(from: string, to: string): string[] {
+function dateRangeArray(from: string, to: string, maxDays = 51): string[] {
   const dates: string[] = [];
   const current = new Date(toIso(from));
   const end = new Date(toIso(to));
   while (current <= end) {
     dates.push(current.toISOString().split('T')[0]);
     current.setDate(current.getDate() + 1);
-    if (dates.length > 14) break;
+    if (dates.length >= maxDays) break;
   }
   return dates;
 }
@@ -190,9 +191,99 @@ export async function getAllLeagues(): Promise<any> {
   const key = 'allLeagues';
   const hit = getCache(key, TTL.league);
   if (hit) return hit;
-  const data = await fotmobGet('/data/allLeagues');
+  const raw: any = await fotmobGet('/data/allLeagues');
+  const data = withLeagueLogos(raw);
   setCache(key, data);
   return data;
+}
+
+const CONTINENT_BY_CCODE: Record<string, string> = {
+  ENG: 'Europe', ESP: 'Europe', ITA: 'Europe', GER: 'Europe', FRA: 'Europe',
+  NED: 'Europe', POR: 'Europe', TUR: 'Europe', SCO: 'Europe', DEN: 'Europe',
+  SWE: 'Europe', NOR: 'Europe', GRE: 'Europe', SUI: 'Europe', BEL: 'Europe',
+  AUT: 'Europe', POL: 'Europe', CZE: 'Europe', CRO: 'Europe', SRB: 'Europe',
+  ROU: 'Europe', BUL: 'Europe', HUN: 'Europe', UKR: 'Europe', RUS: 'Europe',
+  IRL: 'Europe', ISL: 'Europe', WAL: 'Europe', NIR: 'Europe', CYP: 'Europe',
+  ISR: 'Europe', GEO: 'Europe', SVK: 'Europe', SVN: 'Europe', BIH: 'Europe',
+  MKD: 'Europe', MNE: 'Europe', ALB: 'Europe', LVA: 'Europe', LTU: 'Europe',
+  EST: 'Europe', FIN: 'Europe', MLT: 'Europe', LUX: 'Europe',
+  ARG: 'Americas', BRA: 'Americas', USA: 'Americas', MEX: 'Americas', CHI: 'Americas',
+  COL: 'Americas', URU: 'Americas', ECU: 'Americas', PER: 'Americas', VEN: 'Americas',
+  PAR: 'Americas', BOL: 'Americas', CRC: 'Americas', HON: 'Americas', PAN: 'Americas',
+  GUA: 'Americas', SLV: 'Americas',
+  JPN: 'Asia', KOR: 'Asia', KSA: 'Asia', AUS: 'Asia', CHN: 'Asia', IND: 'Asia',
+  IRN: 'Asia', IRQ: 'Asia', QAT: 'Asia', UAE: 'Asia', THA: 'Asia', VIE: 'Asia',
+  IDN: 'Asia', MAS: 'Asia', SGP: 'Asia', PHI: 'Asia', UZB: 'Asia', HKG: 'Asia',
+  TPE: 'Asia', KAZ: 'Asia',
+  RSA: 'Africa', MAR: 'Africa', EGY: 'Africa', NGA: 'Africa', GHA: 'Africa',
+  SEN: 'Africa', CIV: 'Africa', CMR: 'Africa', TUN: 'Africa', ALG: 'Africa',
+  INT: 'International',
+};
+
+export function continentOf(ccode?: string | null): string {
+  if (!ccode) return 'Other';
+  return CONTINENT_BY_CCODE[String(ccode).toUpperCase()] || 'Other';
+}
+
+function leagueWithLogo(lg: any): any {
+  if (!lg || typeof lg !== 'object') return lg;
+  return { ...lg, logo: IMG_LEAGUE(lg.id) };
+}
+
+function withLeagueLogos(raw: any): any {
+  if (!raw || typeof raw !== 'object') return raw;
+  const out: any = { ...raw };
+  if (Array.isArray(raw.popular)) out.popular = raw.popular.map(leagueWithLogo);
+  if (Array.isArray(raw.international)) {
+    out.international = raw.international.map((grp: any) => ({
+      ...grp,
+      leagues: Array.isArray(grp?.leagues) ? grp.leagues.map(leagueWithLogo) : grp?.leagues,
+    }));
+  }
+  if (Array.isArray(raw.countries)) {
+    out.countries = raw.countries.map((c: any) => ({
+      ...c,
+      leagues: Array.isArray(c?.leagues) ? c.leagues.map(leagueWithLogo) : c?.leagues,
+    }));
+  }
+  return out;
+}
+
+// Direktori liga siap-render: populer + grup per benua + semua negara
+export async function getLeaguesGrouped(): Promise<any> {
+  const all: any = await getAllLeagues();
+  const groups: Record<string, any[]> = {
+    International: [],
+    Europe: [],
+    Americas: [],
+    Asia: [],
+    Africa: [],
+    Other: [],
+  };
+  const seen = new Set<string>();
+  const push = (lg: any, fallbackContinent?: string) => {
+    const id = String(lg?.id || '');
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    const withLogo = leagueWithLogo(lg);
+    const cont = fallbackContinent || continentOf(lg?.ccode);
+    (groups[cont] || groups.Other).push(withLogo);
+  };
+  for (const lg of all?.popular || []) push(lg);
+  for (const grp of all?.international || []) {
+    for (const lg of grp?.leagues || []) push(lg, 'International');
+  }
+  for (const c of all?.countries || []) {
+    for (const lg of c?.leagues || []) push(lg);
+  }
+  return {
+    popular: (all?.popular || []).map(leagueWithLogo),
+    groups: Object.entries(groups)
+      .filter(([, leagues]) => leagues.length > 0)
+      .map(([continent, leagues]) => ({ continent, count: leagues.length, leagues })),
+    countries: all?.countries || [],
+    international: all?.international || [],
+  };
 }
 
 export async function getLeagueDetail(leagueId: string, ccode3 = 'GBR'): Promise<any> {
@@ -256,7 +347,8 @@ export async function getTeamDetail(teamId: string, ccode3 = 'GBR'): Promise<any
   const key = `team:${teamId}:${ccode3}`;
   const hit = getCache(key, TTL.team);
   if (hit) return hit;
-  const data = await fotmobGet(`/data/teams?id=${teamId}&ccode3=${ccode3}`);
+  const raw: any = await fotmobGet(`/data/teams?id=${teamId}&ccode3=${ccode3}`);
+  const data = { ...raw, logo: IMG_TEAM(teamId) };
   setCache(key, data);
   return data;
 }
@@ -307,12 +399,22 @@ export async function getPlayerDetail(playerId: string): Promise<any> {
   return data;
 }
 
+export function playerFace(playerId: number | string): { image: string; imageLarge: string } {
+  return {
+    image: IMG_PLAYER(playerId),
+    imageLarge: `https://images.fotmob.com/image_resources/playerimages/${playerId}.png`,
+  };
+}
+
 export async function getPlayerOverview(playerId: string): Promise<any> {
   const p: any = await getPlayerDetail(playerId);
+  const face = playerFace(playerId);
   return {
     id: p?.id || playerId,
     name: p?.name || null,
-    logo: IMG_PLAYER(playerId),
+    logo: face.image,
+    faceImageUrl: face.image,
+    faceImageLargeUrl: face.imageLarge,
     birthDate: p?.birthDate || null,
     primaryTeam: p?.primaryTeam
       ? { ...p.primaryTeam, logo: p.primaryTeam.teamId ? IMG_TEAM(p.primaryTeam.teamId) : undefined }
@@ -345,17 +447,22 @@ export async function searchAll(query: string): Promise<{ matches: any[]; teams:
   const pick = (t: string) =>
     suggestions
       .filter((s: any) => s.type === t)
-      .map((s: any) => ({
-        ...s,
-        logo:
-          t === 'team'
-            ? IMG_TEAM(s.id)
-            : t === 'league'
-              ? IMG_LEAGUE(s.id)
-              : t === 'player'
-                ? IMG_PLAYER(s.id)
-                : undefined,
-      }));
+      .map((s: any) => {
+        const face = t === 'player' ? playerFace(s.id) : null;
+        return {
+          ...s,
+          info: s.info || s.teamName || s.leagueName || null,
+          logo:
+            t === 'team'
+              ? IMG_TEAM(s.id)
+              : t === 'league'
+                ? IMG_LEAGUE(s.id)
+                : t === 'player'
+                  ? face!.image
+                  : undefined,
+          faceImageUrl: t === 'player' ? face!.image : undefined,
+        };
+      });
   return {
     matches: pick('match'),
     teams: pick('team'),
@@ -421,6 +528,7 @@ export const fotmobService = {
   getTeamSeasonStats,
   getPlayerDetail,
   getPlayerOverview,
+  playerFace,
   searchAll,
   searchSuggest,
   getLeagueDetail,
@@ -430,6 +538,8 @@ export const fotmobService = {
   getLeagueNews,
   getFixtureDifficulty,
   getAllLeagues,
+  getLeaguesGrouped,
+  continentOf,
   getWorldNews,
   getTrendingNews,
   getTransfers,

@@ -204,7 +204,7 @@ export const matchController = {
     }
   },
 
-  // GET /api/matches/range?from=YYYY-MM-DD&to=YYYY-MM-DD (maks 14 hari)
+  // GET /api/matches/range?from=YYYY-MM-DD&to=YYYY-MM-DD (maks 51 hari = ±25)
   getMatchesRange: async (req: Request, res: Response) => {
     try {
       const from = req.query.from as string;

@@ -9,9 +9,10 @@ const ENDPOINTS = [
   { method: 'GET', path: EP('/matches/live'), desc: 'Skor live saat ini' },
   { method: 'GET', path: EP('/matches/live/stream'), desc: 'SSE live score (event: live tiap ~30 dtk)' },
   { method: 'GET', path: EP('/matches/date/:date'), desc: 'Semua laga 1 hari (YYYY-MM-DD / YYYYMMDD)' },
-  { method: 'GET', path: EP('/matches/range?from=&to='), desc: 'Rentang tanggal (maks 14 hari)' },
+  { method: 'GET', path: EP('/matches/range?from=&to='), desc: 'Rentang tanggal (maks 51 hari = ±25)' },
   { method: 'GET', path: EP('/matches/notable'), desc: 'Laga pilihan hari ini' },
   { method: 'GET', path: EP('/leagues'), desc: 'Direktori semua liga' },
+  { method: 'GET', path: EP('/leagues/grouped'), desc: 'Liga populer + grup benua siap-render' },
   { method: 'GET', path: EP('/league/:id'), desc: 'Detail liga full' },
   { method: 'GET', path: EP('/league/:id/overview?season='), desc: 'Agregat liga: detail + tabel + fixtures + stats' },
   { method: 'GET', path: EP('/league/:id/table'), desc: 'Klasemen (all/home/away/form/xg)' },
@@ -47,7 +48,7 @@ export const docsController = {
   getDocs: (_req: Request, res: Response) => {
     sendSuccess(res, {
       name: 'Football Live API',
-      version: '3.1.0',
+      version: '3.2.0',
       sampleIds: {
         leagueId: 47,
         teamId: 9825,

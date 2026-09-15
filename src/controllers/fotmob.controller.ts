@@ -75,6 +75,17 @@ export const fotmobController = {
     }
   },
 
+  // GET /api/fotmob/leagues/grouped (populer + grup benua siap-render)
+  getLeaguesGrouped: async (_req: Request, res: Response) => {
+    try {
+      const data = await fotmobService.getLeaguesGrouped();
+      sendSuccess(res, data, 'fotmob', CACHE_LONG);
+    } catch (error: any) {
+      console.error('[FotMob] getLeaguesGrouped error:', error.message);
+      sendError(res, 'Failed to fetch grouped leagues');
+    }
+  },
+
   // GET /api/fotmob/league/:id
   getLeagueDetail: async (req: Request, res: Response) => {
     try {

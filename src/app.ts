@@ -39,7 +39,7 @@ app.use('/api', routes);
 app.get('/', (_req, res) => {
   res.json({
     name: 'Live Football API',
-    version: '3.1.0',
+    version: '3.2.0',
     description: 'Football data API - live scores, stats, xG, lineups & more',
     docs: '/api/docs',
     health: '/api/health',
@@ -48,7 +48,7 @@ app.get('/', (_req, res) => {
       live: '/api/matches/live (+ /api/matches/live/stream SSE)',
       calendar: '/api/matches/date/:date , /api/matches/range?from=&to=',
       match: '/api/match/:id (+ /overview, /summary, /media, /odds, /tv)',
-      leagues: '/api/leagues , /api/league/:id (+ /overview, /table, /fixtures?season=, /news, /difficulty)',
+      leagues: '/api/leagues , /api/leagues/grouped , /api/league/:id (+ /overview, /table, /fixtures?season=, /news, /difficulty)',
       team: '/api/team/:id (+ /overview, /fixtures, /results, /news, /stats?tournamentId=)',
       player: '/api/player/:id (+ /overview)',
       search: '/api/search/all?q= , /api/search/suggest?term=',
