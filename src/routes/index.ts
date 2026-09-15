@@ -13,7 +13,7 @@ import fotmobRoutes from './fotmob.routes';
 const router = Router();
 
 router.use(matchRoutes);
-router.use('/fotmob', fotmobRoutes);
+router.use(fotmobRoutes);
 router.use(competitionRoutes);
 router.use(teamRoutes);
 router.use(playerRoutes);

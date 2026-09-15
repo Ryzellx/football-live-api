@@ -2,7 +2,7 @@
 
 # ⚽ Football Live API
 
-**A powerful, free football data API — live scores, stats, xG, lineups, standings, news & transfers, powered by FotMob**
+**A powerful, free football data API — live scores, stats, xG, lineups, standings, news & transfers**
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/Ryzellx/football-live-api)
 ![License](https://img.shields.io/github/license/Ryzellx/football-live-api?style=flat-square)
@@ -37,7 +37,7 @@
 | **Node.js** | Runtime |
 | **Express 5** | HTTP Server + SSE |
 | **TypeScript** | Type Safety |
-| **FotMob (`/api/data/*`)** | Data Source (JSON API resmi web FotMob) |
+| **External JSON feed** | Data Source |
 | **Vercel** | Deployment |
 
 ## 📦 Installation
@@ -64,7 +64,7 @@ Env penting (lihat `.env.example`): `PORT`, `DEFAULT_TIMEZONE=Asia/Jakarta`,
 ## 🚀 API Endpoints
 
 Base: `https://football-live-api.vercel.app` (lokal: `http://localhost:3001`).
-Semua respons: `{ success, source: "fotmob", updatedAt, data }`.
+Semua respons: `{ success, updatedAt, data }`.
 Daftar lengkap yang selalu update: `GET /api/docs`.
 
 ### 🏠 Home, Health & Live
@@ -73,11 +73,11 @@ Daftar lengkap yang selalu update: `GET /api/docs`.
 GET /api/home
 GET /api/health
 GET /api/docs
-GET /api/fotmob/matches/live?timezone=Asia/Jakarta&ccode3=IDN
-GET /api/fotmob/matches/live/stream?interval=30000     # SSE, event: live
-GET /api/fotmob/matches/notable
-GET /api/fotmob/matches/date/:date                    # YYYY-MM-DD / YYYYMMDD
-GET /api/fotmob/matches/range?from=2026-09-14&to=2026-09-15   # maks 14 hari
+GET /api/matches/live?timezone=Asia/Jakarta&ccode3=IDN
+GET /api/matches/live/stream?interval=30000     # SSE, event: live
+GET /api/matches/notable
+GET /api/matches/date/:date                    # YYYY-MM-DD / YYYYMMDD
+GET /api/matches/range?from=2026-09-14&to=2026-09-15   # maks 14 hari
 ```
 
 <details>
@@ -86,7 +86,6 @@ GET /api/fotmob/matches/range?from=2026-09-14&to=2026-09-15   # maks 14 hari
 ```json
 {
   "success": true,
-  "source": "fotmob",
   "data": {
     "leagues": [
       {
@@ -116,13 +115,13 @@ GET /api/fotmob/matches/range?from=2026-09-14&to=2026-09-15   # maks 14 hari
 ### ⚽ Match Detail
 
 ```
-GET /api/fotmob/match/:id
-GET /api/fotmob/match/:id/overview         # ringkasan siap-render
-GET /api/fotmob/match/:id/shotmap
-GET /api/fotmob/match/:id/momentum
-GET /api/fotmob/match/:id/h2h
-GET /api/fotmob/match/:id/media
-GET /api/fotmob/match/:id/tv?countryCode=ID
+GET /api/match/:id
+GET /api/match/:id/overview         # ringkasan siap-render
+GET /api/match/:id/shotmap
+GET /api/match/:id/momentum
+GET /api/match/:id/h2h
+GET /api/match/:id/media
+GET /api/match/:id/tv?countryCode=ID
 ```
 
 Returns: General info, header, match facts, events, stats, lineup, shotmap, H2H, player ratings, momentum, and more.
@@ -130,29 +129,29 @@ Returns: General info, header, match facts, events, stats, lineup, shotmap, H2H,
 ### 🏠 Club & 👤 Player
 
 ```
-GET /api/fotmob/team/:id                   # /club/:id alias
-GET /api/fotmob/team/:id/overview          # next/last match, form, upcoming, results
-GET /api/fotmob/team/:id/fixtures
-GET /api/fotmob/team/:id/results
-GET /api/fotmob/team/:id/news
-GET /api/fotmob/team/:id/stats?tournamentId=47
-GET /api/fotmob/player/:id
-GET /api/fotmob/player/:id/overview
+GET /api/team/:id                   # /club/:id alias
+GET /api/team/:id/overview          # next/last match, form, upcoming, results
+GET /api/team/:id/fixtures
+GET /api/team/:id/results
+GET /api/team/:id/news
+GET /api/team/:id/stats?tournamentId=47
+GET /api/player/:id
+GET /api/player/:id/overview
 ```
 
 ### 🏆 League, 🔍 Search, 📰 News
 
 ```
-GET /api/fotmob/leagues
-GET /api/fotmob/league/:id
-GET /api/fotmob/league/:id/overview?season=2026/2027
-GET /api/fotmob/league/:id/table
-GET /api/fotmob/league/:id/fixtures?season=2026/2027
-GET /api/fotmob/search/all?q=messi
-GET /api/fotmob/search/suggest?term=ronaldo
-GET /api/fotmob/news/world?page=1
-GET /api/fotmob/news/trending
-GET /api/fotmob/transfers
+GET /api/leagues
+GET /api/league/:id
+GET /api/league/:id/overview?season=2026/2027
+GET /api/league/:id/table
+GET /api/league/:id/fixtures?season=2026/2027
+GET /api/search/all?q=messi
+GET /api/search/suggest?term=ronaldo
+GET /api/news/world?page=1
+GET /api/news/trending
+GET /api/transfers
 ```
 
 ### 🔑 Sample IDs
@@ -165,7 +164,7 @@ matchId=5795450 • date=2026-09-15 • season=2026/2027
 ### 🧪 SSE live score tanpa polling
 
 ```javascript
-const es = new EventSource('/api/fotmob/matches/live/stream?timezone=Asia/Jakarta');
+const es = new EventSource('/api/matches/live/stream?timezone=Asia/Jakarta');
 es.addEventListener('live', (e) => {
   const { data } = JSON.parse(e.data);
   console.log('live total:', data.total);
@@ -236,7 +235,7 @@ es.addEventListener('live', (e) => {
 
 ## 🌍 Supported Leagues
 
-Semua liga yang ada di FotMob (ratusan, bukan daftar statis) — ambil dari `GET /api/fotmob/leagues`:
+Semua liga yang didukung (ratusan, bukan daftar statis) — ambil dari `GET /api/leagues`:
 
 International: Champions League • Europa League • Conference League • World Cup • EURO • Copa America …
 Europe: Premier League • La Liga • Serie A • Bundesliga • Ligue 1 • Eredivisie • Liga Portugal …
@@ -271,7 +270,7 @@ const localTime = new Date(match.status.utcTime).toLocaleString('en-US', {
 
 | Project | Description | Link |
 |---------|-------------|------|
-| **Footcore** | ⚽ Football frontend (FotMob clone) | [footcore.vercel.app](https://footcore.vercel.app) |
+| **Footcore** | ⚽ Football frontend | [footcore.vercel.app](https://footcore.vercel.app) |
 
 ## 📊 Rate Limits & Cache
 
@@ -280,10 +279,9 @@ const localTime = new Date(match.status.utcTime).toLocaleString('en-US', {
 - Header `Cache-Control` dikirim agar CDN/browser ikut cache
 - Tanpa API key. Fair use — jangan spam interval SSE di bawah 10 dtk
 
-## ⚠️ Keterbatasan (dari sisi FotMob, bukan bug backend)
+## ⚠️ Keterbatasan data
 
-- `matchOdds` sering `204`/kosong
-- `playerStats` legacy return `null` — pakai `playerData` / match `playerStats`
+- `matchOdds` sering kosong dari upstream
 - `notableMatches` kadang kosong tergantung hari
 - `tvlistings` tergantung region (`countryCode`)
 - Delay realtime wajar ±20–60 dtk (REST + cache)
@@ -304,11 +302,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## ⚠️ Disclaimer
 
-Data dari [FotMob](https://www.fotmob.com) untuk edukasi. Hormati ToS mereka.
+Data disediakan untuk tujuan edukasi. Hormati ketentuan layanan penyedia data.
 
 ## 🙏 Acknowledgments
 
-- [FotMob](https://www.fotmob.com) — Data source
 - [Vercel](https://vercel.com) — Hosting
 - [Express](https://expressjs.com) — Web framework
 - [TypeScript](https://www.typescriptlang.org) — Type safety
