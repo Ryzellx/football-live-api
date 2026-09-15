@@ -5,6 +5,7 @@ const router = Router();
 
 router.get('/teams', teamController.getAll);
 router.get('/team/:id', teamController.getDetail);
+router.get('/team/:id/overview', teamController.getOverview);
 router.get('/team/:id/squad', teamController.getSquad);
 router.get('/team/:id/fixtures', teamController.getFixtures);
 router.get('/team/:id/results', teamController.getResults);

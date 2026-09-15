@@ -2,7 +2,7 @@
 
 # ⚽ Football Live API
 
-**A powerful, free football data API powered by FotMob scraping**
+**A powerful, free football data API — live scores, stats, xG, lineups, standings, news & transfers, powered by FotMob**
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/Ryzellx/football-live-api)
 ![License](https://img.shields.io/github/license/Ryzellx/football-live-api?style=flat-square)
@@ -10,7 +10,7 @@
 ![Node.js](https://img.shields.io/badge/Node.js-339933?style=flat-square&logo=node.js&logoColor=white)
 ![Express](https://img.shields.io/badge/Express-000000?style=flat-square&logo=express)
 
-[🚀 Live Demo](https://football-live-api.vercel.app) • [📖 API Docs](#-api-endpoints) • [🎯 Frontend](https://footcore.vercel.app)
+[🚀 Live Demo](https://football-live-api.vercel.app) • [📖 API Docs](https://football-live-api.vercel.app/api/docs) • [🎯 Frontend](https://footcore.vercel.app)
 
 </div>
 
@@ -18,25 +18,26 @@
 
 ## ✨ Features
 
-- 🏟️ **Live Scores** — Real-time match scores with minute-by-minute updates
-- 📊 **Full Match Stats** — Possession, shots, xG, passes, tackles, and 50+ stats
-- 👥 **Lineups** — Starting XI, substitutes, formations, player ratings
-- 🗓️ **Match Calendar** — Matches by date with timezone support
-- 🏆 **League Standings** — Full league tables with form guides
-- 🔍 **Search** — Search for teams, players, and leagues
-- 📈 **Player Stats** — Career history, trophies, market values, recent matches
-- 🏠 **Club Info** — Squad, fixtures, transfers, trophies, form
-- 🌍 **500+ Leagues** — From Premier League to J-League and beyond
-- ⚡ **Fast & Cached** — 10-minute cache for optimal performance
+- 🔴 **Live Scores + SSE stream** — `/matches/live` & `/matches/live/stream` (push tiap ~30 dtk)
+- 🏠 **Home feed 1 panggilan** — `/api/home`: jadwal hari ini + live + trending + transfer
+- 📊 **Full Match Detail** — stats, xG, shotmap, momentum, lineup, H2H, rating pemain
+- 🧩 **Siap-render overview** — `/match/:id/overview`, `/team/:id/overview`, `/league/:id/overview`
+- 🗓️ **Match Calendar** — by date + range (maks 14 hari), timezone & ccode3 support
+- 🏆 **League Hub** — detail, klasemen (all/home/away/form/xG), fixtures per musim, top scorer/assist
+- 🔍 **Search hidup** — tim, pemain, liga, match + autocomplete
+- 📰 **News & Transfers** — world, trending, per tim/liga + bursa transfer
+- 🖼️ **Logo enrichment** — setiap tim/liga/pemain otomatis dapat field `logo`
+- ⚡ **Cache berlapis** — live 30 dtk, list 60 dtk, liga/tim 5 mnt (plus header Cache-Control)
+- 🛡️ **Production-ready** — helmet, gzip, rate-limit, request-id, `/health`, `/docs`
 
 ## 🛠️ Tech Stack
 
 | Technology | Purpose |
 |------------|---------|
 | **Node.js** | Runtime |
-| **Express** | HTTP Server |
+| **Express 5** | HTTP Server + SSE |
 | **TypeScript** | Type Safety |
-| **FotMob** | Data Source (scraping) |
+| **FotMob (`/api/data/*`)** | Data Source (JSON API resmi web FotMob) |
 | **Vercel** | Deployment |
 
 ## 📦 Installation
@@ -48,21 +49,35 @@ cd football-live-api
 
 # Install dependencies
 npm install
+cp .env.example .env   # opsional, semua ada default-nya
 
-# Build
-npm run build
+# Dev
+npm run dev            # port 3001
 
-# Start
-npm start
+# Produksi
+npm run build && npm start
 ```
+
+Env penting (lihat `.env.example`): `PORT`, `DEFAULT_TIMEZONE=Asia/Jakarta`,
+`DEFAULT_CCODE3=IDN`, `RATE_LIMIT_MAX`, `LIVE_STREAM_INTERVAL_MS`.
 
 ## 🚀 API Endpoints
 
-### 📅 Matches
+Base: `https://football-live-api.vercel.app` (lokal: `http://localhost:3001`).
+Semua respons: `{ success, source: "fotmob", updatedAt, data }`.
+Daftar lengkap yang selalu update: `GET /api/docs`.
+
+### 🏠 Home, Health & Live
 
 ```
-GET /api/fotmob/matches/date/:date
-GET /api/fotmob/matches/range?from=YYYY-MM-DD&to=YYYY-MM-DD
+GET /api/home
+GET /api/health
+GET /api/docs
+GET /api/fotmob/matches/live?timezone=Asia/Jakarta&ccode3=IDN
+GET /api/fotmob/matches/live/stream?interval=30000     # SSE, event: live
+GET /api/fotmob/matches/notable
+GET /api/fotmob/matches/date/:date                    # YYYY-MM-DD / YYYYMMDD
+GET /api/fotmob/matches/range?from=2026-09-14&to=2026-09-15   # maks 14 hari
 ```
 
 <details>
@@ -102,38 +117,59 @@ GET /api/fotmob/matches/range?from=YYYY-MM-DD&to=YYYY-MM-DD
 
 ```
 GET /api/fotmob/match/:id
+GET /api/fotmob/match/:id/overview         # ringkasan siap-render
+GET /api/fotmob/match/:id/shotmap
+GET /api/fotmob/match/:id/momentum
+GET /api/fotmob/match/:id/h2h
+GET /api/fotmob/match/:id/media
+GET /api/fotmob/match/:id/tv?countryCode=ID
 ```
 
 Returns: General info, header, match facts, events, stats, lineup, shotmap, H2H, player ratings, momentum, and more.
 
-### 🏠 Club
+### 🏠 Club & 👤 Player
 
 ```
-GET /api/fotmob/club/:id
-```
-
-Returns: Club details, squad (coach, keepers, defenders, midfielders, attackers), trophies, fixtures, form, transfers, standings.
-
-### 👤 Player
-
-```
+GET /api/fotmob/team/:id                   # /club/:id alias
+GET /api/fotmob/team/:id/overview          # next/last match, form, upcoming, results
+GET /api/fotmob/team/:id/fixtures
+GET /api/fotmob/team/:id/results
+GET /api/fotmob/team/:id/news
+GET /api/fotmob/team/:id/stats?tournamentId=47
 GET /api/fotmob/player/:id
+GET /api/fotmob/player/:id/overview
 ```
 
-Returns: Bio, player information, injuries, trophies, career history, recent matches, market values, traits.
-
-### 🏆 League
+### 🏆 League, 🔍 Search, 📰 News
 
 ```
+GET /api/fotmob/leagues
 GET /api/fotmob/league/:id
+GET /api/fotmob/league/:id/overview?season=2026/2027
+GET /api/fotmob/league/:id/table
+GET /api/fotmob/league/:id/fixtures?season=2026/2027
+GET /api/fotmob/search/all?q=messi
+GET /api/fotmob/search/suggest?term=ronaldo
+GET /api/fotmob/news/world?page=1
+GET /api/fotmob/news/trending
+GET /api/fotmob/transfers
 ```
 
-Returns: League details, full standings table, all fixtures, stats (top scorers, top assists), history.
-
-### 🔍 Search
+### 🔑 Sample IDs
 
 ```
-GET /api/fotmob/search/all?q=:query
+leagueId=47 (Premier League) • teamId=9825 (Arsenal) • playerId=30981 (Messi)
+matchId=5795450 • date=2026-09-15 • season=2026/2027
+```
+
+### 🧪 SSE live score tanpa polling
+
+```javascript
+const es = new EventSource('/api/fotmob/matches/live/stream?timezone=Asia/Jakarta');
+es.addEventListener('live', (e) => {
+  const { data } = JSON.parse(e.data);
+  console.log('live total:', data.total);
+});
 ```
 
 ## 📸 Response Examples
@@ -200,29 +236,16 @@ GET /api/fotmob/search/all?q=:query
 
 ## 🌍 Supported Leagues
 
-<details>
-<summary>Click to expand (200+ leagues)</summary>
+Semua liga yang ada di FotMob (ratusan, bukan daftar statis) — ambil dari `GET /api/fotmob/leagues`:
 
-### 🌐 International
-FIFA World Cup • Champions League • Europa League • Conference League • EURO • Copa America • Friendlies • WC Qualifiers
-
-### 🇪🇺 Europe
-Premier League • La Liga • Serie A • Bundesliga • Ligue 1 • Eredivisie • Liga Portugal • Süper Lig • Scottish Premiership • Championship • League One • Superligaen • Allsvenskan • Eliteserien • Super League (Greece) • 1. Liga (Switzerland) • 2. Bundesliga • Serie B • and more...
-
-### 🌎 Americas
-Liga Profesional (Argentina) • Serie A/B (Brazil) • MLS (USA) • Liga MX (Mexico) • Primera División (Chile) • Primera A (Colombia)
-
-### 🌏 Asia & Oceania
-J1 League (Japan) • K League 1 (South Korea) • Pro League (Saudi Arabia) • A-League (Australia) • Super League (China)
-
-### 🌍 Africa
-Premier League (South Africa) • Botola Pro (Morocco)
-
-</details>
+International: Champions League • Europa League • Conference League • World Cup • EURO • Copa America …
+Europe: Premier League • La Liga • Serie A • Bundesliga • Ligue 1 • Eredivisie • Liga Portugal …
+Americas: Liga Profesional • Serie A/B Brazil • MLS • Liga MX …
+Asia: J1 League • K League 1 • Saudi Pro League • A-League …
 
 ## ⏰ Timezone Support
 
-All match times are returned in UTC. Convert to local timezone:
+Default `Asia/Jakarta`. Override per request: `?timezone=Asia/Makassar&ccode3=IDN`.
 
 ```javascript
 // JavaScript
@@ -250,11 +273,20 @@ const localTime = new Date(match.status.utcTime).toLocaleString('en-US', {
 |---------|-------------|------|
 | **Footcore** | ⚽ Football frontend (FotMob clone) | [footcore.vercel.app](https://footcore.vercel.app) |
 
-## 📊 API Rate Limits
+## 📊 Rate Limits & Cache
 
-- **Cache Duration:** 10 minutes per league
-- **No API Key Required:** Free to use
-- **Fair Use:** Don't abuse the API
+- General: 600 req / 15 mnt • Search: 120 / 15 mnt (ubah via `.env`)
+- Server cache: live 30 dtk • match detail 20 dtk • list 60 dtk • liga/tim 5 mnt • pemain 10 mnt
+- Header `Cache-Control` dikirim agar CDN/browser ikut cache
+- Tanpa API key. Fair use — jangan spam interval SSE di bawah 10 dtk
+
+## ⚠️ Keterbatasan (dari sisi FotMob, bukan bug backend)
+
+- `matchOdds` sering `204`/kosong
+- `playerStats` legacy return `null` — pakai `playerData` / match `playerStats`
+- `notableMatches` kadang kosong tergantung hari
+- `tvlistings` tergantung region (`countryCode`)
+- Delay realtime wajar ±20–60 dtk (REST + cache)
 
 ## 🤝 Contributing
 
@@ -272,7 +304,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## ⚠️ Disclaimer
 
-This API scrapes data from [FotMob](https://www.fotmob.com) for educational purposes. All football data belongs to FotMob. Please respect their terms of service.
+Data dari [FotMob](https://www.fotmob.com) untuk edukasi. Hormati ToS mereka.
 
 ## 🙏 Acknowledgments
 

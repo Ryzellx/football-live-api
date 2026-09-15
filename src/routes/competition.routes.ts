@@ -5,6 +5,7 @@ const router = Router();
 
 router.get('/competitions', competitionController.getAll);
 router.get('/competition/:id', competitionController.getDetail);
+router.get('/competition/:id/overview', competitionController.getOverview);
 router.get('/competition/:id/standings', competitionController.getStandings);
 router.get('/competition/:id/fixtures', competitionController.getFixtures);
 router.get('/competition/:id/results', competitionController.getResults);

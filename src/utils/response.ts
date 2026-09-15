@@ -9,10 +9,13 @@ export interface ApiResponse<T = any> {
   message?: string;
 }
 
-export function sendSuccess<T>(res: Response, data: T, source?: string): void {
+export function sendSuccess<T>(res: Response, data: T, source?: string, cacheSeconds = 0): void {
+  if (cacheSeconds > 0) {
+    res.set('Cache-Control', `public, max-age=${cacheSeconds}`);
+  }
   res.json({
     success: true,
-    source: source || config.sourceName || 'thesportsdb',
+    source: source || config.sourceName,
     updatedAt: new Date().toISOString(),
     data,
   });

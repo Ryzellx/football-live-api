@@ -1,32 +1,45 @@
 import { Request, Response } from 'express';
-import { sendSuccess } from '../utils/response';
+import { fotmobService } from '../services/fotmob.service';
+import { sendSuccess, sendError } from '../utils/response';
 
 export const transferController = {
   getAll: async (_req: Request, res: Response) => {
-    sendSuccess(res, {
-      message: 'Sofascore does not provide a global transfers listing endpoint. Use /api/team/:id/transfers for team-specific transfers.',
-      transfers: [],
-    });
+    try {
+      const data = await fotmobService.getTransfers();
+      sendSuccess(res, data, 'fotmob');
+    } catch (error: any) {
+      console.error('[TransferController] getAll error:', error.message);
+      sendError(res, 'Failed to fetch transfers');
+    }
   },
 
   getLatest: async (_req: Request, res: Response) => {
-    sendSuccess(res, {
-      message: 'Sofascore does not provide a latest transfers endpoint. Use /api/team/:id/transfers for team-specific transfers.',
-      transfers: [],
-    });
+    try {
+      const data = await fotmobService.getTransfers();
+      sendSuccess(res, data, 'fotmob');
+    } catch (error: any) {
+      console.error('[TransferController] getLatest error:', error.message);
+      sendError(res, 'Failed to fetch latest transfers');
+    }
   },
 
   getRumours: async (_req: Request, res: Response) => {
-    sendSuccess(res, {
-      message: 'Sofascore does not provide a transfer rumours endpoint.',
-      transfers: [],
-    });
+    try {
+      const data = await fotmobService.getTransfers();
+      sendSuccess(res, data, 'fotmob');
+    } catch (error: any) {
+      console.error('[TransferController] getRumours error:', error.message);
+      sendError(res, 'Failed to fetch transfer rumours');
+    }
   },
 
   getOfficial: async (_req: Request, res: Response) => {
-    sendSuccess(res, {
-      message: 'Sofascore does not provide an official transfers listing endpoint. Use /api/team/:id/transfers for team-specific transfers.',
-      transfers: [],
-    });
+    try {
+      const data = await fotmobService.getTransfers();
+      sendSuccess(res, data, 'fotmob');
+    } catch (error: any) {
+      console.error('[TransferController] getOfficial error:', error.message);
+      sendError(res, 'Failed to fetch official transfers');
+    }
   },
 };

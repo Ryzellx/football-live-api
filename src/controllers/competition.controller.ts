@@ -1,12 +1,18 @@
 import { Request, Response } from 'express';
-import { sofascoreService } from '../services/sofascore.service';
+import { fotmobService } from '../services/fotmob.service';
 import { sendSuccess, sendError } from '../utils/response';
+import { CACHE_MEDIUM, CACHE_LONG } from '../middleware/cache';
+
+function statBlock(data: any, header: string): any {
+  const players = data?.stats?.players || [];
+  return players.find((p: any) => new RegExp(header, 'i').test(p.header || '')) || null;
+}
 
 export const competitionController = {
   getAll: async (_req: Request, res: Response) => {
     try {
-      const data = await sofascoreService.getCompetitions();
-      sendSuccess(res, data);
+      const data = await fotmobService.getAllLeagues();
+      sendSuccess(res, data, 'fotmob', CACHE_LONG);
     } catch (error: any) {
       console.error('[CompetitionController] getAll error:', error.message);
       sendError(res, 'Failed to fetch competitions');
@@ -16,19 +22,30 @@ export const competitionController = {
   getDetail: async (req: Request, res: Response) => {
     try {
       const id = String(req.params.id);
-      const data = await sofascoreService.getCompetitionDetail(id);
-      sendSuccess(res, data);
+      const data = await fotmobService.getLeagueDetail(id);
+      sendSuccess(res, data, 'fotmob', CACHE_LONG);
     } catch (error: any) {
       console.error('[CompetitionController] getDetail error:', error.message);
       sendError(res, 'Failed to fetch competition detail');
     }
   },
 
+  getOverview: async (req: Request, res: Response) => {
+    try {
+      const id = String(req.params.id);
+      const data = await fotmobService.getLeagueOverview(id, req.query.season as string | undefined);
+      sendSuccess(res, data, 'fotmob', CACHE_MEDIUM);
+    } catch (error: any) {
+      console.error('[CompetitionController] getOverview error:', error.message);
+      sendError(res, 'Failed to fetch competition overview');
+    }
+  },
+
   getStandings: async (req: Request, res: Response) => {
     try {
       const id = String(req.params.id);
-      const data = await sofascoreService.getCompetitionStandings(id);
-      sendSuccess(res, data);
+      const data = await fotmobService.getLeagueTable(id);
+      sendSuccess(res, data, 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[CompetitionController] getStandings error:', error.message);
       sendError(res, 'Failed to fetch standings');
@@ -38,8 +55,9 @@ export const competitionController = {
   getFixtures: async (req: Request, res: Response) => {
     try {
       const id = String(req.params.id);
-      const data = await sofascoreService.getCompetitionEvents(id);
-      sendSuccess(res, data);
+      const season = (req.query.season as string) || '2026/2027';
+      const data = await fotmobService.getLeagueFixtures(id, season);
+      sendSuccess(res, data, 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[CompetitionController] getFixtures error:', error.message);
       sendError(res, 'Failed to fetch competition fixtures');
@@ -49,8 +67,8 @@ export const competitionController = {
   getResults: async (req: Request, res: Response) => {
     try {
       const id = String(req.params.id);
-      const data = await sofascoreService.getCompetitionResults(id);
-      sendSuccess(res, data);
+      const data = await fotmobService.getLeagueDetail(id);
+      sendSuccess(res, data?.fixtures || data, 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[CompetitionController] getResults error:', error.message);
       sendError(res, 'Failed to fetch competition results');
@@ -60,8 +78,8 @@ export const competitionController = {
   getTopScorers: async (req: Request, res: Response) => {
     try {
       const id = String(req.params.id);
-      const data = await sofascoreService.getCompetitionTopScorers(id);
-      sendSuccess(res, data);
+      const data = await fotmobService.getLeagueDetail(id);
+      sendSuccess(res, statBlock(data, 'scorer|goals') || data?.stats?.players || null, 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[CompetitionController] getTopScorers error:', error.message);
       sendError(res, 'Failed to fetch top scorers');
@@ -71,8 +89,8 @@ export const competitionController = {
   getTopAssists: async (req: Request, res: Response) => {
     try {
       const id = String(req.params.id);
-      const data = await sofascoreService.getCompetitionTopAssists(id);
-      sendSuccess(res, data);
+      const data = await fotmobService.getLeagueDetail(id);
+      sendSuccess(res, statBlock(data, 'assist') || null, 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[CompetitionController] getTopAssists error:', error.message);
       sendError(res, 'Failed to fetch top assists');
@@ -82,8 +100,8 @@ export const competitionController = {
   getTopKeepers: async (req: Request, res: Response) => {
     try {
       const id = String(req.params.id);
-      const data = await sofascoreService.getCompetitionTopKeepers(id);
-      sendSuccess(res, data);
+      const data = await fotmobService.getLeagueDetail(id);
+      sendSuccess(res, statBlock(data, 'clean sheet|keeper|save') || null, 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[CompetitionController] getTopKeepers error:', error.message);
       sendError(res, 'Failed to fetch top keepers');
@@ -93,8 +111,8 @@ export const competitionController = {
   getCards: async (req: Request, res: Response) => {
     try {
       const id = String(req.params.id);
-      const data = await sofascoreService.getCompetitionCards(id);
-      sendSuccess(res, data);
+      const data = await fotmobService.getLeagueDetail(id);
+      sendSuccess(res, statBlock(data, 'card|yellow|red') || null, 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[CompetitionController] getCards error:', error.message);
       sendError(res, 'Failed to fetch card rankings');

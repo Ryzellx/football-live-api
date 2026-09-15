@@ -1,102 +1,115 @@
 import { Request, Response } from 'express';
-import { sofascoreService } from '../services/sofascore.service';
+import { fotmobService } from '../services/fotmob.service';
 import { sendSuccess, sendError } from '../utils/response';
+import { CACHE_MEDIUM } from '../middleware/cache';
+
+const leagueId = (req: Request) => (req.query.leagueId as string) || '47';
+
+function pick(data: any, pattern: RegExp, label: string) {
+  try {
+    const players = data?.stats?.players || [];
+    return players.find((p: any) => pattern.test(p.header || '')) || null;
+  } catch (error: any) {
+    console.error(`[StatsController] ${label} pick error:`, error.message);
+    return null;
+  }
+}
 
 export const statsController = {
-  getTopScorers: async (_req: Request, res: Response) => {
+  getTopScorers: async (req: Request, res: Response) => {
     try {
-      const data = await sofascoreService.getTopScorers();
-      sendSuccess(res, data);
+      const data = await fotmobService.getLeagueDetail(leagueId(req));
+      sendSuccess(res, pick(data, /scorer|goals/i, 'topscorers') || (data as any)?.stats || null, 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[StatsController] getTopScorers error:', error.message);
       sendError(res, 'Failed to fetch top scorers');
     }
   },
 
-  getTopAssists: async (_req: Request, res: Response) => {
+  getTopAssists: async (req: Request, res: Response) => {
     try {
-      const data = await sofascoreService.getTopAssists();
-      sendSuccess(res, data);
+      const data = await fotmobService.getLeagueDetail(leagueId(req));
+      sendSuccess(res, pick(data, /assist/i, 'topassists'), 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[StatsController] getTopAssists error:', error.message);
       sendError(res, 'Failed to fetch top assists');
     }
   },
 
-  getCleanSheets: async (_req: Request, res: Response) => {
+  getCleanSheets: async (req: Request, res: Response) => {
     try {
-      const data = await sofascoreService.getCleanSheets();
-      sendSuccess(res, data);
+      const data = await fotmobService.getLeagueDetail(leagueId(req));
+      sendSuccess(res, pick(data, /clean sheet|shutout/i, 'cleansheets'), 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[StatsController] getCleanSheets error:', error.message);
       sendError(res, 'Failed to fetch clean sheets');
     }
   },
 
-  getMostGoals: async (_req: Request, res: Response) => {
+  getMostGoals: async (req: Request, res: Response) => {
     try {
-      const data = await sofascoreService.getMostGoals();
-      sendSuccess(res, data);
+      const data = await fotmobService.getLeagueDetail(leagueId(req));
+      sendSuccess(res, pick(data, /scorer|goals/i, 'mostgoals') || (data as any)?.stats || null, 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[StatsController] getMostGoals error:', error.message);
       sendError(res, 'Failed to fetch most goals');
     }
   },
 
-  getMostShots: async (_req: Request, res: Response) => {
+  getMostShots: async (req: Request, res: Response) => {
     try {
-      const data = await sofascoreService.getMostShots();
-      sendSuccess(res, data);
+      const data = await fotmobService.getLeagueDetail(leagueId(req));
+      sendSuccess(res, pick(data, /shot/i, 'mostshots'), 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[StatsController] getMostShots error:', error.message);
       sendError(res, 'Failed to fetch most shots');
     }
   },
 
-  getMostPasses: async (_req: Request, res: Response) => {
+  getMostPasses: async (req: Request, res: Response) => {
     try {
-      const data = await sofascoreService.getMostPasses();
-      sendSuccess(res, data);
+      const data = await fotmobService.getLeagueDetail(leagueId(req));
+      sendSuccess(res, pick(data, /pass/i, 'mostpasses'), 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[StatsController] getMostPasses error:', error.message);
       sendError(res, 'Failed to fetch most passes');
     }
   },
 
-  getMostDribbles: async (_req: Request, res: Response) => {
+  getMostDribbles: async (req: Request, res: Response) => {
     try {
-      const data = await sofascoreService.getMostDribbles();
-      sendSuccess(res, data);
+      const data = await fotmobService.getLeagueDetail(leagueId(req));
+      sendSuccess(res, pick(data, /dribble/i, 'mostdribbles'), 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[StatsController] getMostDribbles error:', error.message);
       sendError(res, 'Failed to fetch most dribbles');
     }
   },
 
-  getMostTackles: async (_req: Request, res: Response) => {
+  getMostTackles: async (req: Request, res: Response) => {
     try {
-      const data = await sofascoreService.getMostTackles();
-      sendSuccess(res, data);
+      const data = await fotmobService.getLeagueDetail(leagueId(req));
+      sendSuccess(res, pick(data, /tackle/i, 'mosttackles'), 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[StatsController] getMostTackles error:', error.message);
       sendError(res, 'Failed to fetch most tackles');
     }
   },
 
-  getMostSaves: async (_req: Request, res: Response) => {
+  getMostSaves: async (req: Request, res: Response) => {
     try {
-      const data = await sofascoreService.getMostSaves();
-      sendSuccess(res, data);
+      const data = await fotmobService.getLeagueDetail(leagueId(req));
+      sendSuccess(res, pick(data, /save|keeper/i, 'mostsaves'), 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[StatsController] getMostSaves error:', error.message);
       sendError(res, 'Failed to fetch most saves');
     }
   },
 
-  getCards: async (_req: Request, res: Response) => {
+  getCards: async (req: Request, res: Response) => {
     try {
-      const data = await sofascoreService.getCards();
-      sendSuccess(res, data);
+      const data = await fotmobService.getLeagueDetail(leagueId(req));
+      sendSuccess(res, pick(data, /card|yellow|red/i, 'cards'), 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[StatsController] getCards error:', error.message);
       sendError(res, 'Failed to fetch card statistics');
