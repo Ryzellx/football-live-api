@@ -1,13 +1,34 @@
-import { fotmobGet, getCache, setCache, toYmd, toIso, TTL } from './fotmob.client';
+import { fotmobGet, fetchJson, getCache, setCache, toYmd, toIso, TTL } from './fotmob.client';
+import {
+  IMG_TEAM,
+  IMG_LEAGUE,
+  IMG_PLAYER,
+  isLive,
+  withLeagueLogos,
+  splitFixturesResults,
+  extractTopStats,
+  matchEvents,
+  goalsAndCards,
+  buildTimeline,
+  normalizeTable,
+  statBlockByHeader,
+  enrichStatBlock,
+  playerPosition,
+  playerAge,
+  normalizeSquad,
+  filterTransfers,
+  suggestInfo,
+  type TransferFilter,
+} from '../utils/normalize';
 
-const IMG_TEAM = (id: number | string) =>
-  `https://images.fotmob.com/image_resources/logo/teamlogo/${id}.png`;
-const IMG_LEAGUE = (id: number | string) =>
-  `https://images.fotmob.com/image_resources/logo/leaguelogo/${id}.png`;
-const IMG_PLAYER = (id: number | string) =>
-  `https://images.fotmob.com/image_resources/logo/playerimages/${id}.png`;
+const IMG_PLAYER_LARGE = (id: number | string) =>
+  `https://images.fotmob.com/image_resources/playerimages/${id}.png`;
 
 export const img = { team: IMG_TEAM, league: IMG_LEAGUE, player: IMG_PLAYER };
+
+export function toYmdSafe(v: string): string {
+  return toYmd(v);
+}
 
 // ── Matches ────────────────────────────────────────────────────────────────
 
@@ -17,31 +38,9 @@ export async function getMatchesByDate(date: string, timezone = 'Asia/Jakarta', 
   const hit = getCache(key, TTL.matches);
   if (hit) return hit;
   const raw: any = await fotmobGet(`/data/matches?date=${ymd}&timezone=${encodeURIComponent(timezone)}&ccode3=${ccode3}`);
-  const data = withLogos(raw);
+  const data = withLeagueLogos(raw);
   setCache(key, data);
   return data;
-}
-
-function isLive(status: any): boolean {
-  if (!status) return false;
-  return status.ongoing === true || (status.started === true && status.finished === false && status.cancelled !== true);
-}
-
-function withLogos(data: any): any {
-  if (!data?.leagues) return data;
-  return {
-    ...data,
-    leagues: data.leagues.map((lg: any) => ({
-      ...lg,
-      logo: IMG_LEAGUE(lg.primaryId || lg.id),
-      matches: (lg.matches || []).map((m: any) => ({
-        ...m,
-        home: m.home ? { ...m.home, logo: IMG_TEAM(m.home.id) } : m.home,
-        away: m.away ? { ...m.away, logo: IMG_TEAM(m.away.id) } : m.away,
-        isLive: isLive(m.status),
-      })),
-    })),
-  };
 }
 
 export async function getLiveMatches(timezone = 'Asia/Jakarta', ccode3 = 'IDN'): Promise<{ leagues: any[]; total: number; date: string }> {
@@ -50,35 +49,27 @@ export async function getLiveMatches(timezone = 'Asia/Jakarta', ccode3 = 'IDN'):
     .map((lg: any) => {
       const live = (lg.matches || []).filter((m: any) => isLive(m.status));
       if (live.length === 0) return null;
-      return {
-        ...lg,
-        logo: IMG_LEAGUE(lg.primaryId || lg.id),
-        matches: live.map((m: any) => ({
-          ...m,
-          home: m.home ? { ...m.home, logo: IMG_TEAM(m.home.id) } : m.home,
-          away: m.away ? { ...m.away, logo: IMG_TEAM(m.away.id) } : m.away,
-          isLive: true,
-        })),
-      };
+      return { ...lg, matches: live.map((m: any) => ({ ...m, isLive: true })) };
     })
     .filter(Boolean);
   const total = leagues.reduce((n: number, l: any) => n + l.matches.length, 0);
   return { leagues, total, date: data?.date };
 }
 
-export async function getNotableMatches(lang = 'en-GB', country = 'GBR'): Promise<any> {
-  const key = `notable:${lang}:${country}`;
+export async function getNotableMatches(): Promise<any> {
+  const key = 'notable:en-GB:GBR';
   const hit = getCache(key, TTL.matches);
   if (hit) return hit;
-  const data = await fotmobGet(`/data/notableMatches?lang=${lang}&country=${country}`);
+  const data = await fotmobGet('/data/notableMatches?lang=en-GB&country=GBR');
   setCache(key, data);
   return data;
 }
 
-function dateRangeArray(from: string, to: string, maxDays = 51): string[] {
+export function dateRangeArray(from: string, to: string, maxDays = 51): string[] {
   const dates: string[] = [];
   const current = new Date(toIso(from));
   const end = new Date(toIso(to));
+  if (Number.isNaN(current.getTime()) || Number.isNaN(end.getTime())) return dates;
   while (current <= end) {
     dates.push(current.toISOString().split('T')[0]);
     current.setDate(current.getDate() + 1);
@@ -87,7 +78,7 @@ function dateRangeArray(from: string, to: string, maxDays = 51): string[] {
   return dates;
 }
 
-export async function getMatchesByDateRange(from: string, to: string, timezone = 'Asia/Jakarta', ccode3 = 'IDN'): Promise<{ leagues: any[]; total: number }> {
+export async function getMatchesByDateRange(from: string, to: string, timezone = 'Asia/Jakarta', ccode3 = 'IDN'): Promise<{ leagues: any[]; total: number; from: string; to: string }> {
   const dates = dateRangeArray(from, to);
   const seen = new Set<string>();
   const leagueMap = new Map<string, any>();
@@ -106,12 +97,7 @@ export async function getMatchesByDateRange(from: string, to: string, timezone =
             const mid = String(m.id || '');
             if (mid && !seen.has(mid)) {
               seen.add(mid);
-              merged.matches.push({
-                ...m,
-                home: m.home ? { ...m.home, logo: IMG_TEAM(m.home.id) } : m.home,
-                away: m.away ? { ...m.away, logo: IMG_TEAM(m.away.id) } : m.away,
-                isLive: isLive(m.status),
-              });
+              merged.matches.push({ ...m, isLive: isLive(m.status) });
             }
           }
         }
@@ -120,7 +106,7 @@ export async function getMatchesByDateRange(from: string, to: string, timezone =
       }
     }),
   );
-  return { leagues: Array.from(leagueMap.values()), total: seen.size };
+  return { leagues: Array.from(leagueMap.values()), total: seen.size, from: toIso(from), to: toIso(to) };
 }
 
 // ── Match ──────────────────────────────────────────────────────────────────
@@ -143,12 +129,16 @@ export async function getMatchSummary(matchId: string): Promise<any> {
   return data;
 }
 
-export async function getMatchMedia(matchId: string, ccode3 = 'GBR'): Promise<any> {
-  return fotmobGet(`/data/matchMedia?matchId=${matchId}&ccode3=${ccode3}`);
+export async function getMatchMedia(matchId: string): Promise<any> {
+  return fotmobGet(`/data/matchMedia?matchId=${matchId}&ccode3=IDN`);
 }
 
-export async function getMatchOdds(matchId: string, ccode3 = 'GBR'): Promise<any> {
-  return fotmobGet(`/data/matchOdds?matchId=${matchId}&ccode3=${ccode3}`);
+export async function getMatchOdds(matchId: string): Promise<any> {
+  try {
+    return await fotmobGet(`/data/matchOdds?matchId=${matchId}&ccode3=IDN`);
+  } catch {
+    return null;
+  }
 }
 
 export async function getTvListings(matchId: string, countryCode = 'ID'): Promise<any> {
@@ -161,14 +151,10 @@ export async function getMatchOverview(matchId: string): Promise<any> {
   const d: any = details.status === 'fulfilled' ? details.value : null;
   const s: any = summary.status === 'fulfilled' ? summary.value : null;
   const header = d?.header || {};
-  const teams = (header.teams || []).map((t: any) => ({ ...t, logo: IMG_TEAM(t.id) }));
+  const teams = (header.teams || []).map((t: any) => ({ ...t, logo: t?.logo || IMG_TEAM(t?.id) }));
   const status = header.status || s?.status || null;
-  const eventsRaw = d?.content?.matchFacts?.events;
-  const events = Array.isArray(eventsRaw) ? eventsRaw : eventsRaw?.events || [];
-  const goals = events.filter((e: any) => /goal/i.test(String(e.type || '')));
-  const cards = events.filter((e: any) => /card/i.test(String(e.type || '')));
-  const stats = d?.content?.stats;
-  const topStats = Array.isArray(stats) ? stats.slice(0, 8) : stats || null;
+  const events = matchEvents(d);
+  const { goals, cards } = goalsAndCards(events);
   return {
     id: matchId,
     general: d?.general || null,
@@ -180,9 +166,119 @@ export async function getMatchOverview(matchId: string): Promise<any> {
     cards,
     playerOfTheMatch: d?.content?.matchFacts?.playerOfTheMatch || null,
     infoBox: d?.content?.matchFacts?.infoBox || null,
-    topStats,
+    topStats: extractTopStats(d),
     summary: s,
   };
+}
+
+export async function getMatchTimeline(matchId: string): Promise<any> {
+  const d: any = await getMatchDetail(matchId);
+  const events = matchEvents(d);
+  const { goals, cards } = goalsAndCards(events);
+  return {
+    id: matchId,
+    isLive: isLive(d?.header?.status),
+    status: d?.header?.status || null,
+    timeline: buildTimeline(d),
+    goals,
+    cards,
+    penaltyShootout: d?.content?.matchFacts?.events?.penaltyShootoutEvents || null,
+  };
+}
+
+export async function getMatchCommentary(matchId: string): Promise<any> {
+  const d: any = await getMatchDetail(matchId);
+  return {
+    id: matchId,
+    liveticker: d?.content?.liveticker || null,
+    events: matchEvents(d),
+    timeline: buildTimeline(d),
+    superlive: d?.content?.superlive || null,
+    buzz: d?.content?.buzz || null,
+    summary: await getMatchSummary(matchId).catch(() => null),
+  };
+}
+
+export async function getMatchInfo(matchId: string): Promise<any> {
+  const d: any = await getMatchDetail(matchId);
+  return {
+    id: matchId,
+    general: d?.general || null,
+    header: d?.header || null,
+    infoBox: d?.content?.matchFacts?.infoBox || null,
+    venue: d?.content?.matchFacts?.infoBox?.Stadium || null,
+    referee: d?.content?.matchFacts?.infoBox?.Referee || null,
+    teamForm: d?.content?.matchFacts?.teamForm || null,
+    weather: d?.content?.weather || null,
+    insights: d?.content?.matchFacts?.insights || null,
+  };
+}
+
+export async function getMatchStats(matchId: string): Promise<any> {
+  const d: any = await getMatchDetail(matchId);
+  return {
+    id: matchId,
+    teams: (d?.header?.teams || []).map((t: any) => ({ ...t, logo: t?.logo || IMG_TEAM(t?.id) })),
+    periods: d?.content?.stats?.Periods || null,
+    topStats: extractTopStats(d),
+    playerStats: d?.content?.playerStats || null,
+    topPlayers: d?.content?.matchFacts?.topPlayers || null,
+  };
+}
+
+export async function getMatchLineups(matchId: string): Promise<any> {
+  const d: any = await getMatchDetail(matchId);
+  return {
+    id: matchId,
+    lineup: d?.content?.lineup || null,
+  };
+}
+
+export async function getMatchRatings(matchId: string): Promise<any> {
+  const d: any = await getMatchDetail(matchId);
+  return {
+    id: matchId,
+    playerStats: d?.content?.playerStats || null,
+    topPlayers: d?.content?.matchFacts?.topPlayers || null,
+    playerOfTheMatch: d?.content?.matchFacts?.playerOfTheMatch || null,
+  };
+}
+
+export async function getMatchH2H(matchId: string): Promise<any> {
+  const d: any = await getMatchDetail(matchId);
+  return d?.content?.h2h || null;
+}
+
+export async function getMatchTable(matchId: string): Promise<any> {
+  const d: any = await getMatchDetail(matchId);
+  return d?.content?.table || null;
+}
+
+export async function getMatchMomentum(matchId: string): Promise<any> {
+  const d: any = await getMatchDetail(matchId);
+  const direct = d?.content?.momentum;
+  if (direct && (Array.isArray(direct?.main?.data) ? direct.main.data.length > 0 : true)) return direct;
+  const facts = d?.content?.matchFacts?.momentum;
+  if (facts) return facts;
+  return direct || null;
+}
+
+export async function getMatchShotmap(matchId: string): Promise<any> {
+  const d: any = await getMatchDetail(matchId);
+  return d?.content?.shotmap || null;
+}
+
+export async function getMatchHeatmap(matchId: string): Promise<any> {
+  const d: any = await getMatchDetail(matchId);
+  return {
+    id: matchId,
+    heatmapUrl: d?.content?.heatmapUrl || null,
+    attackingZones: d?.content?.attackingZones || null,
+  };
+}
+
+export function getMatchFacts(detail: any): any {
+  return detail?.content?.matchFacts || detail || null;
 }
 
 // ── Leagues ────────────────────────────────────────────────────────────────
@@ -192,9 +288,8 @@ export async function getAllLeagues(): Promise<any> {
   const hit = getCache(key, TTL.league);
   if (hit) return hit;
   const raw: any = await fotmobGet('/data/allLeagues');
-  const data = withLeagueLogos(raw);
-  setCache(key, data);
-  return data;
+  setCache(key, raw);
+  return raw;
 }
 
 const CONTINENT_BY_CCODE: Record<string, string> = {
@@ -227,26 +322,7 @@ export function continentOf(ccode?: string | null): string {
 
 function leagueWithLogo(lg: any): any {
   if (!lg || typeof lg !== 'object') return lg;
-  return { ...lg, logo: IMG_LEAGUE(lg.id) };
-}
-
-function withLeagueLogos(raw: any): any {
-  if (!raw || typeof raw !== 'object') return raw;
-  const out: any = { ...raw };
-  if (Array.isArray(raw.popular)) out.popular = raw.popular.map(leagueWithLogo);
-  if (Array.isArray(raw.international)) {
-    out.international = raw.international.map((grp: any) => ({
-      ...grp,
-      leagues: Array.isArray(grp?.leagues) ? grp.leagues.map(leagueWithLogo) : grp?.leagues,
-    }));
-  }
-  if (Array.isArray(raw.countries)) {
-    out.countries = raw.countries.map((c: any) => ({
-      ...c,
-      leagues: Array.isArray(c?.leagues) ? c.leagues.map(leagueWithLogo) : c?.leagues,
-    }));
-  }
-  return out;
+  return { ...lg, logo: lg.logo || IMG_LEAGUE(lg.id) };
 }
 
 // Direktori liga siap-render: populer + grup per benua + semua negara
@@ -304,6 +380,25 @@ export async function getLeagueTable(leagueId: string): Promise<any> {
   return data;
 }
 
+export async function getLeagueTableNormalized(leagueId: string, scope: 'all' | 'home' | 'away' | 'form' | 'xg' = 'all'): Promise<any> {
+  const raw: any = await getLeagueTable(leagueId);
+  const norm = normalizeTable(raw);
+  if (scope === 'all' || scope === 'home' || scope === 'away') {
+    return { scope, table: norm[scope], legend: norm.legend };
+  }
+  return { scope, rows: norm[scope], legend: norm.legend };
+}
+
+export async function getLeagueXGTable(leagueId: string): Promise<any> {
+  const raw: any = await getLeagueTable(leagueId);
+  const norm = normalizeTable(raw);
+  const rows = (norm.xg || []).map((r: any) => ({
+    ...r,
+    xgDiff: r.xg != null ? Number((Number(r.xg) - Number(r.xgConceded || 0)).toFixed(3)) : null,
+  }));
+  return { table: rows, legend: norm.legend };
+}
+
 export async function getLeagueFixtures(leagueId: string, season: string): Promise<any> {
   const key = `fixtures:${leagueId}:${season}`;
   const hit = getCache(key, TTL.league);
@@ -322,23 +417,81 @@ export async function getFixtureDifficulty(leagueId: string): Promise<any> {
 }
 
 // Agregat 1-panggilan untuk halaman liga di frontend
-export async function getLeagueOverview(leagueId: string, season?: string): Promise<any> {
-  const detail: any = await getLeagueDetail(leagueId);
+export async function getLeagueOverview(leagueId: string, season?: string, ccode3 = 'GBR'): Promise<any> {
+  const detail: any = await getLeagueDetail(leagueId, ccode3);
   const resolvedSeason = season || detail?.details?.selectedSeason || (detail?.allAvailableSeasons || [])[0];
   const [tableRes, fixturesRes] = await Promise.allSettled([
-    getLeagueTable(leagueId),
-    resolvedSeason ? getLeagueFixtures(leagueId, resolvedSeason) : Promise.resolve(null),
+    getLeagueTable(leagueId).catch(() => null),
+    resolvedSeason ? getLeagueFixtures(leagueId, resolvedSeason).catch(() => null) : Promise.resolve(null),
   ]);
+  const tableRaw = tableRes.status === 'fulfilled' ? tableRes.value : null;
   return {
     details: detail?.details || null,
     season: resolvedSeason || null,
     seasons: detail?.allAvailableSeasons || [],
-    table: tableRes.status === 'fulfilled' ? tableRes.value : null,
+    table: tableRaw ? normalizeTable(tableRaw) : null,
+    tableRaw,
     fixtures: fixturesRes.status === 'fulfilled' ? fixturesRes.value : null,
     stats: detail?.stats || null,
+    topPlayers: detail?.overview?.topPlayers || null,
+    hasTotw: detail?.overview?.hasTotw ?? null,
     transfers: detail?.transfers || null,
     logo: IMG_LEAGUE(leagueId),
   };
+}
+
+export async function getLeagueStats(leagueId: string): Promise<any> {
+  const detail: any = await getLeagueDetail(leagueId);
+  return {
+    players: detail?.stats?.players || [],
+    teams: detail?.stats?.teams || [],
+    topPlayers: detail?.overview?.topPlayers || null,
+  };
+}
+
+export async function getFullStatList(fetchAllUrl: string): Promise<any> {
+  const key = `statlist:${fetchAllUrl}`;
+  const hit = getCache(key, TTL.league);
+  if (hit) return hit;
+  const data = await fetchJson(fetchAllUrl);
+  setCache(key, data);
+  return data;
+}
+
+export function normalizeStatList(payload: any): any[] {
+  const list: any[] = payload?.TopLists?.[0]?.StatList || payload?.StatList || (Array.isArray(payload) ? payload : []);
+  return list.map((p: any) => ({
+    id: p?.ParticiantId ?? p?.id ?? null,
+    name: p?.ParticipantName || p?.name || null,
+    teamId: p?.TeamId ?? p?.teamId ?? null,
+    teamName: p?.TeamName || p?.teamName || null,
+    teamColor: p?.TeamColor || null,
+    value: p?.StatValue ?? p?.value ?? null,
+    subValue: p?.SubStatValue ?? null,
+    rank: p?.Rank ?? p?.rank ?? null,
+    country: p?.ParticipantCountryCode || p?.ccode || null,
+    minutesPlayed: p?.MinutesPlayed ?? null,
+    matchesPlayed: p?.MatchesPlayed ?? null,
+    faceImageUrl: (p?.ParticiantId ?? p?.id) ? IMG_PLAYER(p.ParticiantId ?? p.id) : undefined,
+    teamLogo: (p?.TeamId ?? p?.teamId) ? IMG_TEAM(p.TeamId ?? p.teamId) : undefined,
+  }));
+}
+
+export async function getLeagueStatFull(leagueId: string, headerPattern: string): Promise<any> {
+  const detail: any = await getLeagueDetail(leagueId);
+  const block = statBlockByHeader(detail, new RegExp(headerPattern, 'i'));
+  if (!block) return null;
+  const enriched = enrichStatBlock(block);
+  let full: any[] | null = null;
+  if (block.fetchAllUrl) {
+    try {
+      const raw = await getFullStatList(block.fetchAllUrl);
+      full = normalizeStatList(raw);
+    } catch {
+      full = null;
+    }
+  }
+  return { ...enriched, full };
 }
 
 // ── Teams ──────────────────────────────────────────────────────────────────
@@ -348,7 +501,7 @@ export async function getTeamDetail(teamId: string, ccode3 = 'GBR'): Promise<any
   const hit = getCache(key, TTL.team);
   if (hit) return hit;
   const raw: any = await fotmobGet(`/data/teams?id=${teamId}&ccode3=${ccode3}`);
-  const data = { ...raw, logo: IMG_TEAM(teamId) };
+  const data = { ...raw, logo: raw?.logo || IMG_TEAM(teamId) };
   setCache(key, data);
   return data;
 }
@@ -362,16 +515,14 @@ export async function getTeamSeasonStats(teamId: string, tournamentId: string): 
 }
 
 export function splitFixtures(fixtures: any[]): { upcoming: any[]; results: any[] } {
-  const upcoming = (fixtures || []).filter((f: any) => f.notStarted === true || f.status?.finished === false);
-  const results = (fixtures || []).filter((f: any) => f.status?.finished === true).reverse();
-  return { upcoming, results };
+  return splitFixturesResults(fixtures);
 }
 
 // Agregat 1-panggilan untuk halaman klub di frontend
-export async function getTeamOverview(teamId: string): Promise<any> {
-  const team: any = await getTeamDetail(teamId);
+export async function getTeamOverview(teamId: string, ccode3 = 'GBR'): Promise<any> {
+  const team: any = await getTeamDetail(teamId, ccode3);
   const fixtures: any[] = team?.fixtures?.allFixtures?.fixtures || [];
-  const { upcoming, results } = splitFixtures(fixtures);
+  const { upcoming, results } = splitFixturesResults(fixtures);
   return {
     details: team?.details || null,
     logo: IMG_TEAM(teamId),
@@ -382,10 +533,37 @@ export async function getTeamOverview(teamId: string): Promise<any> {
     results: results.slice(0, 10),
     table: team?.table || null,
     squad: team?.squad || null,
+    squadByPosition: team?.squad ? normalizeSquad(team.squad) : null,
     stats: team?.stats || null,
     transfers: team?.transfers || null,
     overview: team?.overview || null,
   };
+}
+
+export async function getTeamSquad(teamId: string): Promise<any> {
+  const team: any = await getTeamDetail(teamId);
+  return {
+    id: teamId,
+    logo: IMG_TEAM(teamId),
+    groups: team?.squad?.squad || [],
+    byPosition: normalizeSquad(team?.squad),
+  };
+}
+
+export function teamInjuriesAndSuspensions(team: any): { injuries: any[]; suspensions: any[] } {
+  const members: any[] = (team?.squad?.squad || []).flatMap((g: any) => g?.members || []);
+  const injuries = members.filter((m: any) =>
+    /injur|doubt|out |sidelined|unavailable/i.test(JSON.stringify(m?.injuryInformation || m || '')),
+  );
+  void injuries;
+  const unavailable: any[] = [];
+  const suspended: any[] = [];
+  for (const g of team?.squad?.squad || []) {
+    for (const m of g?.members || []) {
+      if (m?.suspended === true || /suspend/i.test(String(m?.status || m?.availability || ''))) suspended.push(m);
+    }
+  }
+  return { injuries: team?.injuries || unavailable, suspensions: suspended };
 }
 
 // ── Players ────────────────────────────────────────────────────────────────
@@ -402,32 +580,59 @@ export async function getPlayerDetail(playerId: string): Promise<any> {
 export function playerFace(playerId: number | string): { image: string; imageLarge: string } {
   return {
     image: IMG_PLAYER(playerId),
-    imageLarge: `https://images.fotmob.com/image_resources/playerimages/${playerId}.png`,
+    imageLarge: IMG_PLAYER_LARGE(playerId),
   };
 }
 
 export async function getPlayerOverview(playerId: string): Promise<any> {
   const p: any = await getPlayerDetail(playerId);
   const face = playerFace(playerId);
+  const info: any[] = p?.playerInformation || [];
+  const infoVal = (title: RegExp) =>
+    info.find((i: any) => title.test(String(i?.title || '')))?.value?.fallback ??
+    info.find((i: any) => title.test(String(i?.title || '')))?.value ??
+    null;
   return {
     id: p?.id || playerId,
     name: p?.name || null,
     logo: face.image,
     faceImageUrl: face.image,
     faceImageLargeUrl: face.imageLarge,
+    age: playerAge(p),
     birthDate: p?.birthDate || null,
+    height: infoVal(/height/i),
+    shirtNumber: infoVal(/shirt/i),
+    preferredFoot: infoVal(/foot/i),
+    nationality: p?.primaryTeam ? undefined : infoVal(/country|nationality/i),
+    marketValue: infoVal(/market|value/i),
     primaryTeam: p?.primaryTeam
       ? { ...p.primaryTeam, logo: p.primaryTeam.teamId ? IMG_TEAM(p.primaryTeam.teamId) : undefined }
       : null,
-    position: p?.positionDescription || p?.position || null,
+    position: playerPosition(p),
+    positions: p?.positionDescription?.positions || null,
     playerInformation: p?.playerInformation || [],
     recentMatches: p?.recentMatches || [],
+    mainLeague: p?.mainLeague || null,
     careerHistory: p?.careerHistory || null,
     trophies: p?.trophies || null,
     marketValues: p?.marketValues || null,
-    injuryInformation: p?.injuryInformation || null,
-    raw: p,
+    injuryInformation: p?.injuryInformation ?? null,
   };
+}
+
+export async function getPlayerSeason(playerId: string): Promise<any> {
+  const p: any = await getPlayerDetail(playerId);
+  return {
+    id: p?.id || playerId,
+    seasons: p?.statSeasons || null,
+    mainLeague: p?.mainLeague || null,
+    trophies: p?.trophies || null,
+  };
+}
+
+export async function getPlayerHistory(playerId: string): Promise<any> {
+  const p: any = await getPlayerDetail(playerId);
+  return p?.careerHistory || null;
 }
 
 // ── Search ─────────────────────────────────────────────────────────────────
@@ -441,26 +646,27 @@ export async function searchSuggest(term: string, hits = 25, lang = 'en'): Promi
   return data;
 }
 
-export async function searchAll(query: string): Promise<{ matches: any[]; teams: any[]; players: any[]; leagues: any[] }> {
+export async function searchAll(query: string): Promise<{ matches: any[]; teams: any[]; players: any[]; leagues: any[]; coaches: any[]; referees: any[] }> {
   const raw: any = await searchSuggest(query, 50);
-  const suggestions: any[] = Array.isArray(raw) ? raw[0]?.suggestions || [] : raw?.suggestions || [];
+  const groups: any[] = Array.isArray(raw) ? raw : [raw];
+  const suggestions: any[] = groups.flatMap((g: any) => g?.suggestions || []);
   const pick = (t: string) =>
     suggestions
       .filter((s: any) => s.type === t)
       .map((s: any) => {
-        const face = t === 'player' ? playerFace(s.id) : null;
+        const face = t === 'player' || t === 'coach' ? playerFace(s.id) : null;
         return {
           ...s,
-          info: s.info || s.teamName || s.leagueName || null,
+          info: suggestInfo(s),
           logo:
             t === 'team'
               ? IMG_TEAM(s.id)
               : t === 'league'
                 ? IMG_LEAGUE(s.id)
-                : t === 'player'
+                : t === 'player' || t === 'coach'
                   ? face!.image
                   : undefined,
-          faceImageUrl: t === 'player' ? face!.image : undefined,
+          faceImageUrl: t === 'player' || t === 'coach' ? face!.image : undefined,
         };
       });
   return {
@@ -468,6 +674,8 @@ export async function searchAll(query: string): Promise<{ matches: any[]; teams:
     teams: pick('team'),
     players: pick('player'),
     leagues: pick('league'),
+    coaches: pick('coach'),
+    referees: pick('referee'),
   };
 }
 
@@ -481,8 +689,22 @@ export async function getTrendingNews(): Promise<any> {
   return fotmobGet('/trendingnews');
 }
 
-export async function getTransfers(): Promise<any> {
-  return fotmobGet('/data/transfers');
+export async function getNewsLatest(page = 1): Promise<any> {
+  return getWorldNews(page);
+}
+
+export async function getTransfersRaw(): Promise<any> {
+  const key = 'transfers:raw';
+  const hit = getCache(key, TTL.league);
+  if (hit) return hit;
+  const data = await fotmobGet('/data/transfers');
+  setCache(key, data);
+  return data;
+}
+
+export async function getTransfers(filter: TransferFilter = 'all', limit = 50): Promise<any> {
+  const raw = await getTransfersRaw();
+  return filterTransfers(raw, filter, limit);
 }
 
 // ── Home: 1 panggilan untuk layar utama ala FotMob ─────────────────────────
@@ -490,20 +712,44 @@ export async function getTransfers(): Promise<any> {
 export async function getHome(timezone = 'Asia/Jakarta', ccode3 = 'IDN'): Promise<any> {
   const [matchesRes, trendingRes, transfersRes] = await Promise.allSettled([
     getMatchesByDate(toIso(new Date().toISOString().split('T')[0]), timezone, ccode3),
-    getTrendingNews(),
-    getTransfers(),
+    getTrendingNews().catch(() => []),
+    getTransfersRaw().catch(() => null),
   ]);
-  const matches = matchesRes.status === 'fulfilled' ? withLogos(matchesRes.value) : null;
+  const matches = matchesRes.status === 'fulfilled' ? withLeagueLogos(matchesRes.value) : null;
   const liveTotal = (matches?.leagues || []).reduce(
     (n: number, lg: any) => n + (lg.matches || []).filter((m: any) => isLive(m.status)).length,
     0,
   );
+  const transfers = transfersRes.status === 'fulfilled' && transfersRes.value
+    ? filterTransfers(transfersRes.value, 'latest', 10)
+    : null;
   return {
     date: matches?.date || null,
     liveTotal,
     leagues: matches?.leagues || [],
     trending: trendingRes.status === 'fulfilled' ? trendingRes.value : [],
-    transfers: transfersRes.status === 'fulfilled' ? transfersRes.value : null,
+    transfers,
+  };
+}
+
+// ── Tools (dihitung dari data upstream; NULL = data tidak tersedia) ────────
+
+export function fifaRankingsStub(): { men: null; women: null; note: string } {
+  return { men: null, women: null, note: 'FIFA rankings tidak tersedia dari upstream saat ini' };
+}
+
+export function teamOfTheWeekStub(): { available: false; note: string } {
+  return { available: false, note: 'Team of the Week tidak tersedia dari upstream saat ini' };
+}
+
+export function predictorStub(): { available: false; note: string } {
+  return { available: false, note: 'Predictor membutuhkan akun & odds resmi; data odds upstream sering kosong' };
+}
+
+export function lineupBuilderMeta(): any {
+  return {
+    note: 'Gunakan /api/match/:id/lineups untuk formasi aktual, lalu susun XI sendiri di client',
+    fields: ['formation', 'starters[11]', 'subs'],
   };
 }
 
@@ -514,9 +760,21 @@ export const fotmobService = {
   getMatchDetail,
   getMatchSummary,
   getMatchOverview,
+  getMatchTimeline,
+  getMatchCommentary,
+  getMatchInfo,
+  getMatchStats,
+  getMatchLineups,
+  getMatchRatings,
+  getMatchH2H,
   getMatchMedia,
   getMatchOdds,
   getTvListings,
+  getMatchFacts,
+  getMatchShotmap,
+  getMatchMomentum,
+  getMatchHeatmap,
+  getMatchTable,
   getMatchesByDate,
   getLiveMatches,
   getNotableMatches,
@@ -524,24 +782,40 @@ export const fotmobService = {
   getClubDetail: getTeamDetail,
   getTeamDetail,
   getTeamOverview,
+  getTeamSquad,
+  teamInjuriesAndSuspensions,
   getTeamNews,
   getTeamSeasonStats,
   getPlayerDetail,
   getPlayerOverview,
+  getPlayerSeason,
+  getPlayerHistory,
   playerFace,
   searchAll,
   searchSuggest,
   getLeagueDetail,
   getLeagueOverview,
   getLeagueTable,
+  getLeagueTableNormalized,
+  getLeagueXGTable,
   getLeagueFixtures,
   getLeagueNews,
+  getLeagueStats,
+  getLeagueStatFull,
+  getFullStatList,
+  normalizeStatList,
   getFixtureDifficulty,
   getAllLeagues,
   getLeaguesGrouped,
   continentOf,
   getWorldNews,
+  getNewsLatest,
   getTrendingNews,
   getTransfers,
+  getTransfersRaw,
   getHome,
+  fifaRankingsStub,
+  teamOfTheWeekStub,
+  predictorStub,
+  lineupBuilderMeta,
 };

@@ -3,6 +3,8 @@ import { fotmobService } from '../services/fotmob.service';
 import { sendSuccess, sendError } from '../utils/response';
 import { CACHE_MEDIUM, CACHE_LONG } from '../middleware/cache';
 
+const pid = (req: Request) => String(req.params.id || '').trim();
+
 export const playerController = {
   getAll: async (req: Request, res: Response) => {
     try {
@@ -21,8 +23,16 @@ export const playerController = {
 
   getDetail: async (req: Request, res: Response) => {
     try {
-      const id = String(req.params.id);
+      const id = pid(req);
+      if (!id) {
+        sendError(res, 'Player ID is required', 400);
+        return;
+      }
       const data = await fotmobService.getPlayerDetail(id);
+      if (!data) {
+        sendError(res, `Player not found: ${id}`, 404);
+        return;
+      }
       sendSuccess(res, data, 'fotmob', CACHE_LONG);
     } catch (error: any) {
       console.error('[PlayerController] getDetail error:', error.message);
@@ -32,7 +42,11 @@ export const playerController = {
 
   getOverview: async (req: Request, res: Response) => {
     try {
-      const id = String(req.params.id);
+      const id = pid(req);
+      if (!id) {
+        sendError(res, 'Player ID is required', 400);
+        return;
+      }
       const data = await fotmobService.getPlayerOverview(id);
       sendSuccess(res, data, 'fotmob', CACHE_LONG);
     } catch (error: any) {
@@ -43,8 +57,12 @@ export const playerController = {
 
   getStatistics: async (req: Request, res: Response) => {
     try {
-      const id = String(req.params.id);
-      const data = await fotmobService.getPlayerDetail(id);
+      const id = pid(req);
+      if (!id) {
+        sendError(res, 'Player ID is required', 400);
+        return;
+      }
+      const data = await fotmobService.getPlayerSeason(id);
       sendSuccess(res, data, 'fotmob', CACHE_LONG);
     } catch (error: any) {
       console.error('[PlayerController] getStatistics error:', error.message);
@@ -54,9 +72,13 @@ export const playerController = {
 
   getMatches: async (req: Request, res: Response) => {
     try {
-      const id = String(req.params.id);
+      const id = pid(req);
+      if (!id) {
+        sendError(res, 'Player ID is required', 400);
+        return;
+      }
       const data = await fotmobService.getPlayerDetail(id);
-      sendSuccess(res, (data as any)?.recentMatches || (data as any)?.matches || null, 'fotmob', CACHE_MEDIUM);
+      sendSuccess(res, (data as any)?.recentMatches || null, 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[PlayerController] getMatches error:', error.message);
       sendError(res, 'Failed to fetch player matches');
@@ -65,9 +87,13 @@ export const playerController = {
 
   getSeason: async (req: Request, res: Response) => {
     try {
-      const id = String(req.params.id);
-      const data = await fotmobService.getPlayerDetail(id);
-      sendSuccess(res, (data as any)?.statSeasons || (data as any)?.stats || data, 'fotmob', CACHE_MEDIUM);
+      const id = pid(req);
+      if (!id) {
+        sendError(res, 'Player ID is required', 400);
+        return;
+      }
+      const data = await fotmobService.getPlayerSeason(id);
+      sendSuccess(res, data, 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[PlayerController] getSeason error:', error.message);
       sendError(res, 'Failed to fetch player season stats');
@@ -76,19 +102,29 @@ export const playerController = {
 
   getHistory: async (req: Request, res: Response) => {
     try {
-      const id = String(req.params.id);
-      const data = await fotmobService.getPlayerDetail(id);
-      sendSuccess(res, (data as any)?.careerHistory || null, 'fotmob', CACHE_LONG);
+      const id = pid(req);
+      if (!id) {
+        sendError(res, 'Player ID is required', 400);
+        return;
+      }
+      const data = await fotmobService.getPlayerHistory(id);
+      sendSuccess(res, data, 'fotmob', CACHE_LONG);
     } catch (error: any) {
       console.error('[PlayerController] getHistory error:', error.message);
       sendError(res, 'Failed to fetch player history');
     }
   },
 
-  getTransfers: async (_req: Request, res: Response) => {
+  getTransfers: async (req: Request, res: Response) => {
     try {
-      const data = await fotmobService.getTransfers();
-      sendSuccess(res, data, 'fotmob', CACHE_MEDIUM);
+      const id = pid(req);
+      if (!id) {
+        sendError(res, 'Player ID is required', 400);
+        return;
+      }
+      const history = await fotmobService.getPlayerHistory(id);
+      const items: any[] = history?.careerItems?.senior?.teamEntries || history?.teamEntries || [];
+      sendSuccess(res, { transfers: items }, 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[PlayerController] getTransfers error:', error.message);
       sendError(res, 'Failed to fetch player transfers');
@@ -97,9 +133,13 @@ export const playerController = {
 
   getInjuries: async (req: Request, res: Response) => {
     try {
-      const id = String(req.params.id);
+      const id = pid(req);
+      if (!id) {
+        sendError(res, 'Player ID is required', 400);
+        return;
+      }
       const data = await fotmobService.getPlayerDetail(id);
-      sendSuccess(res, (data as any)?.injuryInformation || null, 'fotmob', CACHE_MEDIUM);
+      sendSuccess(res, (data as any)?.injuryInformation ?? null, 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[PlayerController] getInjuries error:', error.message);
       sendError(res, 'Failed to fetch player injuries');
@@ -108,12 +148,33 @@ export const playerController = {
 
   getNews: async (req: Request, res: Response) => {
     try {
-      const id = String(req.params.id);
+      const id = pid(req);
+      if (!id) {
+        sendError(res, 'Player ID is required', 400);
+        return;
+      }
       const data = await fotmobService.getPlayerDetail(id);
-      sendSuccess(res, data, 'fotmob', CACHE_MEDIUM);
+      const teamId = (data as any)?.primaryTeam?.teamId;
+      const news = teamId ? await fotmobService.getTeamNews(String(teamId)) : { data: [], note: 'Player news mengikuti berita tim utama' };
+      sendSuccess(res, news, 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[PlayerController] getNews error:', error.message);
       sendError(res, 'Failed to fetch player news');
+    }
+  },
+
+  getValue: async (req: Request, res: Response) => {
+    try {
+      const id = pid(req);
+      if (!id) {
+        sendError(res, 'Player ID is required', 400);
+        return;
+      }
+      const data = await fotmobService.getPlayerDetail(id);
+      sendSuccess(res, (data as any)?.marketValues || null, 'fotmob', CACHE_LONG);
+    } catch (error: any) {
+      console.error('[PlayerController] getValue error:', error.message);
+      sendError(res, 'Failed to fetch player market value');
     }
   },
 };

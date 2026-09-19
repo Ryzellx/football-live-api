@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { fotmobService } from '../services/fotmob.service';
 import { sendSuccess, sendError } from '../utils/response';
+import { CACHE_MEDIUM } from '../middleware/cache';
 
 export const searchController = {
   search: async (req: Request, res: Response) => {
@@ -11,10 +12,25 @@ export const searchController = {
         return;
       }
       const data = await fotmobService.searchAll(q);
-      sendSuccess(res, data, 'fotmob');
+      sendSuccess(res, data, 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[SearchController] search error:', error.message);
       sendError(res, 'Failed to perform search');
+    }
+  },
+
+  suggest: async (req: Request, res: Response) => {
+    try {
+      const term = ((req.query.term as string) || (req.query.q as string) || '').trim();
+      if (!term) {
+        sendError(res, 'Query parameter "term" is required', 400);
+        return;
+      }
+      const data = await fotmobService.searchSuggest(term);
+      sendSuccess(res, data, 'fotmob', CACHE_MEDIUM);
+    } catch (error: any) {
+      console.error('[SearchController] suggest error:', error.message);
+      sendError(res, 'Failed to perform suggest');
     }
   },
 };

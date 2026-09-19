@@ -13,5 +13,6 @@ router.get('/player/:id/history', playerController.getHistory);
 router.get('/player/:id/transfers', playerController.getTransfers);
 router.get('/player/:id/injuries', playerController.getInjuries);
 router.get('/player/:id/news', playerController.getNews);
+router.get('/player/:id/value', playerController.getValue);
 
 export default router;

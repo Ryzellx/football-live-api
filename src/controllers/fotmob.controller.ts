@@ -1,26 +1,25 @@
 import { Request, Response } from 'express';
 import { fotmobService } from '../services/fotmob.service';
-import { config } from '../config/env';
 import { sendSuccess, sendError } from '../utils/response';
-import { CACHE_SHORT, CACHE_MEDIUM, CACHE_LONG } from '../middleware/cache';
+import { CACHE_MEDIUM } from '../middleware/cache';
 
 const need = (v: any) => typeof v === 'string' && v.trim().length > 0;
-const tz = (req: Request) => (req.query.timezone as string) || config.defaultTimezone;
-const cc = (req: Request) => (req.query.ccode3 as string) || config.defaultCcode3;
+const badId = (res: Response, label: string) => sendError(res, `${label} is required`, 400);
 
 export const fotmobController = {
-  // GET /api/fotmob/matches/live?timezone=&ccode3=
   getLive: async (req: Request, res: Response) => {
     try {
-      const data = await fotmobService.getLiveMatches(tz(req), cc(req));
-      sendSuccess(res, data, 'fotmob', CACHE_SHORT);
+      const data = await fotmobService.getLiveMatches(
+        (req.query.timezone as string) || 'Asia/Jakarta',
+        (req.query.ccode3 as string) || 'IDN',
+      );
+      sendSuccess(res, data, 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[FotMob] getLive error:', error.message);
       sendError(res, 'Failed to fetch live matches');
     }
   },
 
-  // GET /api/fotmob/matches/notable
   getNotable: async (_req: Request, res: Response) => {
     try {
       const data = await fotmobService.getNotableMatches();
@@ -31,7 +30,6 @@ export const fotmobController = {
     }
   },
 
-  // GET /api/fotmob/matches/date/:date (YYYY-MM-DD atau YYYYMMDD)
   getMatchesByDate: async (req: Request, res: Response) => {
     try {
       const date = req.params.date as string;
@@ -39,7 +37,11 @@ export const fotmobController = {
         sendError(res, 'Valid date YYYY-MM-DD (or YYYYMMDD) required', 400);
         return;
       }
-      const data = await fotmobService.getMatchesByDate(date, tz(req), cc(req));
+      const data = await fotmobService.getMatchesByDate(
+        date,
+        (req.query.timezone as string) || 'Asia/Jakarta',
+        (req.query.ccode3 as string) || 'IDN',
+      );
       sendSuccess(res, data, 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[FotMob] getMatchesByDate error:', error.message);
@@ -47,7 +49,6 @@ export const fotmobController = {
     }
   },
 
-  // GET /api/fotmob/matches/range?from=...&to=...
   getMatchesByRange: async (req: Request, res: Response) => {
     try {
       const from = req.query.from as string;
@@ -56,7 +57,12 @@ export const fotmobController = {
         sendError(res, 'from and to params required', 400);
         return;
       }
-      const data = await fotmobService.getMatchesByDateRange(from, to, tz(req), cc(req));
+      const data = await fotmobService.getMatchesByDateRange(
+        from,
+        to,
+        (req.query.timezone as string) || 'Asia/Jakarta',
+        (req.query.ccode3 as string) || 'IDN',
+      );
       sendSuccess(res, data, 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[FotMob] getMatchesByRange error:', error.message);
@@ -64,58 +70,54 @@ export const fotmobController = {
     }
   },
 
-  // GET /api/fotmob/leagues (direktori semua liga)
   getAllLeagues: async (_req: Request, res: Response) => {
     try {
       const data = await fotmobService.getAllLeagues();
-      sendSuccess(res, data, 'fotmob', CACHE_LONG);
+      sendSuccess(res, data, 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[FotMob] getAllLeagues error:', error.message);
       sendError(res, 'Failed to fetch leagues directory');
     }
   },
 
-  // GET /api/fotmob/leagues/grouped (populer + grup benua siap-render)
   getLeaguesGrouped: async (_req: Request, res: Response) => {
     try {
       const data = await fotmobService.getLeaguesGrouped();
-      sendSuccess(res, data, 'fotmob', CACHE_LONG);
+      sendSuccess(res, data, 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[FotMob] getLeaguesGrouped error:', error.message);
       sendError(res, 'Failed to fetch grouped leagues');
     }
   },
 
-  // GET /api/fotmob/league/:id
   getLeagueDetail: async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
       if (!need(id)) {
-        sendError(res, 'League ID is required', 400);
+        badId(res, 'League ID');
         return;
       }
-      const ccode3 = cc(req);
-      const data = await fotmobService.getLeagueDetail(id, ccode3);
+      const data = await fotmobService.getLeagueDetail(id, (req.query.ccode3 as string) || 'GBR');
       if (!data) {
         sendError(res, `League not found: ${id}`, 404);
         return;
       }
-      sendSuccess(res, data, 'fotmob', CACHE_LONG);
+      sendSuccess(res, data, 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[FotMob] getLeagueDetail error:', error.message);
       sendError(res, 'Failed to fetch league details');
     }
   },
 
-  // GET /api/fotmob/league/:id/table
   getLeagueTable: async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
       if (!need(id)) {
-        sendError(res, 'League ID is required', 400);
+        badId(res, 'League ID');
         return;
       }
-      const data = await fotmobService.getLeagueTable(id);
+      const scope = ((req.query.scope as string) || 'all') as any;
+      const data = await fotmobService.getLeagueTableNormalized(id, scope);
       sendSuccess(res, data, 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[FotMob] getLeagueTable error:', error.message);
@@ -123,12 +125,11 @@ export const fotmobController = {
     }
   },
 
-  // GET /api/fotmob/league/:id/fixtures?season=2026/2027
   getLeagueFixtures: async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
       if (!need(id)) {
-        sendError(res, 'League ID is required', 400);
+        badId(res, 'League ID');
         return;
       }
       const season = (req.query.season as string) || '2026/2027';
@@ -140,12 +141,11 @@ export const fotmobController = {
     }
   },
 
-  // GET /api/fotmob/league/:id/news
   getLeagueNews: async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
       if (!need(id)) {
-        sendError(res, 'League ID is required', 400);
+        badId(res, 'League ID');
         return;
       }
       const data = await fotmobService.getLeagueNews(id);
@@ -156,12 +156,11 @@ export const fotmobController = {
     }
   },
 
-  // GET /api/fotmob/league/:id/difficulty
   getFixtureDifficulty: async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
       if (!need(id)) {
-        sendError(res, 'League ID is required', 400);
+        badId(res, 'League ID');
         return;
       }
       const data = await fotmobService.getFixtureDifficulty(id);
@@ -172,12 +171,11 @@ export const fotmobController = {
     }
   },
 
-  // GET /api/fotmob/league/:id/overview?season=
   getLeagueOverview: async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
       if (!need(id)) {
-        sendError(res, 'League ID is required', 400);
+        badId(res, 'League ID');
         return;
       }
       const data = await fotmobService.getLeagueOverview(id, req.query.season as string | undefined);
@@ -188,112 +186,120 @@ export const fotmobController = {
     }
   },
 
-  // GET /api/fotmob/match/:id (detail lengkap: lineup, stats, xG, shotmap, momentum, H2H)
   getMatchDetail: async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
       if (!need(id)) {
-        sendError(res, 'Match ID is required', 400);
+        badId(res, 'Match ID');
         return;
       }
-      const data = await fotmobService.getMatchByFotmobId(id);
+      const data = await fotmobService.getMatchDetail(id);
       if (!data) {
         sendError(res, `Match not found: ${id}`, 404);
         return;
       }
-      sendSuccess(res, data, 'fotmob', CACHE_SHORT);
+      sendSuccess(res, data, 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[FotMob] getMatchDetail error:', error.message);
       sendError(res, 'Failed to fetch match details');
     }
   },
 
-  // GET /api/fotmob/match/:id/overview
   getMatchOverview: async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
       if (!need(id)) {
-        sendError(res, 'Match ID is required', 400);
+        badId(res, 'Match ID');
         return;
       }
       const data = await fotmobService.getMatchOverview(id);
-      sendSuccess(res, data, 'fotmob', CACHE_SHORT);
+      sendSuccess(res, data, 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[FotMob] getMatchOverview error:', error.message);
       sendError(res, 'Failed to fetch match overview');
     }
   },
 
-  // GET /api/fotmob/match/:id/summary
   getMatchSummary: async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
       if (!need(id)) {
-        sendError(res, 'Match ID is required', 400);
+        badId(res, 'Match ID');
         return;
       }
       const data = await fotmobService.getMatchSummary(id);
-      sendSuccess(res, data, 'fotmob', CACHE_SHORT);
+      sendSuccess(res, data, 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[FotMob] getMatchSummary error:', error.message);
       sendError(res, 'Failed to fetch match summary');
     }
   },
 
-  // GET /api/fotmob/match/:id/shotmap
   getMatchShotmap: async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
       if (!need(id)) {
-        sendError(res, 'Match ID is required', 400);
+        badId(res, 'Match ID');
         return;
       }
-      const data = await fotmobService.getMatchDetail(id);
-      sendSuccess(res, data?.content?.shotmap ?? null, 'fotmob', CACHE_SHORT);
+      const data = await fotmobService.getMatchShotmap(id);
+      sendSuccess(res, data, 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[FotMob] getMatchShotmap error:', error.message);
       sendError(res, 'Failed to fetch shotmap');
     }
   },
 
-  // GET /api/fotmob/match/:id/momentum
   getMatchMomentum: async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
       if (!need(id)) {
-        sendError(res, 'Match ID is required', 400);
+        badId(res, 'Match ID');
         return;
       }
-      const data = await fotmobService.getMatchDetail(id);
-      sendSuccess(res, data?.content?.momentum ?? null, 'fotmob', CACHE_SHORT);
+      const data = await fotmobService.getMatchMomentum(id);
+      sendSuccess(res, data, 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[FotMob] getMatchMomentum error:', error.message);
       sendError(res, 'Failed to fetch momentum');
     }
   },
 
-  // GET /api/fotmob/match/:id/h2h
+  getMatchHeatmap: async (req: Request, res: Response) => {
+    try {
+      const id = req.params.id as string;
+      if (!need(id)) {
+        badId(res, 'Match ID');
+        return;
+      }
+      const data = await fotmobService.getMatchHeatmap(id);
+      sendSuccess(res, data, 'fotmob', CACHE_MEDIUM);
+    } catch (error: any) {
+      console.error('[FotMob] getMatchHeatmap error:', error.message);
+      sendError(res, 'Failed to fetch heatmap');
+    }
+  },
+
   getMatchH2h: async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
       if (!need(id)) {
-        sendError(res, 'Match ID is required', 400);
+        badId(res, 'Match ID');
         return;
       }
-      const data = await fotmobService.getMatchDetail(id);
-      sendSuccess(res, data?.content?.h2h ?? null, 'fotmob', CACHE_MEDIUM);
+      const data = await fotmobService.getMatchH2H(id);
+      sendSuccess(res, data, 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[FotMob] getMatchH2h error:', error.message);
       sendError(res, 'Failed to fetch head-to-head');
     }
   },
 
-  // GET /api/fotmob/match/:id/media
   getMatchMedia: async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
       if (!need(id)) {
-        sendError(res, 'Match ID is required', 400);
+        badId(res, 'Match ID');
         return;
       }
       const data = await fotmobService.getMatchMedia(id);
@@ -304,12 +310,11 @@ export const fotmobController = {
     }
   },
 
-  // GET /api/fotmob/match/:id/odds
   getMatchOdds: async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
       if (!need(id)) {
-        sendError(res, 'Match ID is required', 400);
+        badId(res, 'Match ID');
         return;
       }
       const data = await fotmobService.getMatchOdds(id);
@@ -320,12 +325,11 @@ export const fotmobController = {
     }
   },
 
-  // GET /api/fotmob/match/:id/tv?countryCode=ID
   getTvListings: async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
       if (!need(id)) {
-        sendError(res, 'Match ID is required', 400);
+        badId(res, 'Match ID');
         return;
       }
       const countryCode = (req.query.countryCode as string) || 'ID';
@@ -337,15 +341,14 @@ export const fotmobController = {
     }
   },
 
-  // GET /api/fotmob/club/:id  (alias /api/fotmob/team/:id)
   getClubDetail: async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
       if (!need(id)) {
-        sendError(res, 'Club ID is required', 400);
+        badId(res, 'Club ID');
         return;
       }
-      const data = await fotmobService.getClubDetail(id, cc(req));
+      const data = await fotmobService.getTeamDetail(id, (req.query.ccode3 as string) || 'IDN');
       if (!data) {
         sendError(res, `Club not found: ${id}`, 404);
         return;
@@ -357,12 +360,11 @@ export const fotmobController = {
     }
   },
 
-  // GET /api/fotmob/team/:id/overview
   getTeamOverview: async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
       if (!need(id)) {
-        sendError(res, 'Team ID is required', 400);
+        badId(res, 'Team ID');
         return;
       }
       const data = await fotmobService.getTeamOverview(id);
@@ -373,12 +375,11 @@ export const fotmobController = {
     }
   },
 
-  // GET /api/fotmob/team/:id/fixtures
   getTeamFixtures: async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
       if (!need(id)) {
-        sendError(res, 'Team ID is required', 400);
+        badId(res, 'Team ID');
         return;
       }
       const data = await fotmobService.getTeamOverview(id);
@@ -389,12 +390,11 @@ export const fotmobController = {
     }
   },
 
-  // GET /api/fotmob/team/:id/results
   getTeamResults: async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
       if (!need(id)) {
-        sendError(res, 'Team ID is required', 400);
+        badId(res, 'Team ID');
         return;
       }
       const data = await fotmobService.getTeamOverview(id);
@@ -405,12 +405,11 @@ export const fotmobController = {
     }
   },
 
-  // GET /api/fotmob/team/:id/news
   getTeamNews: async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
       if (!need(id)) {
-        sendError(res, 'Team ID is required', 400);
+        badId(res, 'Team ID');
         return;
       }
       const data = await fotmobService.getTeamNews(id);
@@ -421,7 +420,6 @@ export const fotmobController = {
     }
   },
 
-  // GET /api/fotmob/team/:id/stats?tournamentId=47
   getTeamSeasonStats: async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
@@ -438,12 +436,11 @@ export const fotmobController = {
     }
   },
 
-  // GET /api/fotmob/player/:id
   getPlayerDetail: async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
       if (!need(id)) {
-        sendError(res, 'Player ID is required', 400);
+        badId(res, 'Player ID');
         return;
       }
       const data = await fotmobService.getPlayerDetail(id);
@@ -451,30 +448,28 @@ export const fotmobController = {
         sendError(res, `Player not found: ${id}`, 404);
         return;
       }
-      sendSuccess(res, data, 'fotmob', CACHE_LONG);
+      sendSuccess(res, data, 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[FotMob] getPlayerDetail error:', error.message);
       sendError(res, 'Failed to fetch player details');
     }
   },
 
-  // GET /api/fotmob/player/:id/overview
   getPlayerOverview: async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
       if (!need(id)) {
-        sendError(res, 'Player ID is required', 400);
+        badId(res, 'Player ID');
         return;
       }
       const data = await fotmobService.getPlayerOverview(id);
-      sendSuccess(res, data, 'fotmob', CACHE_LONG);
+      sendSuccess(res, data, 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[FotMob] getPlayerOverview error:', error.message);
       sendError(res, 'Failed to fetch player overview');
     }
   },
 
-  // GET /api/fotmob/search/all?q=...  (+ alias ?term=...)
   searchAll: async (req: Request, res: Response) => {
     try {
       const q = ((req.query.q as string) || (req.query.term as string) || '').trim();
@@ -490,7 +485,6 @@ export const fotmobController = {
     }
   },
 
-  // GET /api/fotmob/search/suggest?term=...
   searchSuggest: async (req: Request, res: Response) => {
     try {
       const term = ((req.query.term as string) || (req.query.q as string) || '').trim();
@@ -506,7 +500,6 @@ export const fotmobController = {
     }
   },
 
-  // GET /api/fotmob/news/world?page=1
   getWorldNews: async (req: Request, res: Response) => {
     try {
       const page = parseInt((req.query.page as string) || '1', 10) || 1;
@@ -518,7 +511,6 @@ export const fotmobController = {
     }
   },
 
-  // GET /api/fotmob/news/trending
   getTrendingNews: async (_req: Request, res: Response) => {
     try {
       const data = await fotmobService.getTrendingNews();
@@ -529,10 +521,10 @@ export const fotmobController = {
     }
   },
 
-  // GET /api/fotmob/transfers
-  getTransfers: async (_req: Request, res: Response) => {
+  getTransfers: async (req: Request, res: Response) => {
     try {
-      const data = await fotmobService.getTransfers();
+      const limit = Math.min(200, Math.max(1, parseInt((req.query.limit as string) || '50', 10) || 50));
+      const data = await fotmobService.getTransfers('all', limit);
       sendSuccess(res, data, 'fotmob', CACHE_MEDIUM);
     } catch (error: any) {
       console.error('[FotMob] transfers error:', error.message);

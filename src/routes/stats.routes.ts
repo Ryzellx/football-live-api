@@ -13,5 +13,7 @@ router.get('/stats/most-dribbles', statsController.getMostDribbles);
 router.get('/stats/most-tackles', statsController.getMostTackles);
 router.get('/stats/most-saves', statsController.getMostSaves);
 router.get('/stats/cards', statsController.getCards);
+router.get('/stats/leaderboard/:metric', statsController.getLeaderboard);
+router.get('/stats/leaderboard', statsController.getLeaderboard);
 
 export default router;

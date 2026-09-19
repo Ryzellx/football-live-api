@@ -9,21 +9,21 @@ router.get('/matches/notable', fotmobController.getNotable);
 router.get('/matches/date/:date', fotmobController.getMatchesByDate);
 router.get('/matches/range', fotmobController.getMatchesByRange);
 
-// Liga
+// Liga (kompat: mentah, tanpa normalisasi tabel)
 router.get('/leagues', fotmobController.getAllLeagues);
 router.get('/leagues/grouped', fotmobController.getLeaguesGrouped);
 router.get('/league/:id', fotmobController.getLeagueDetail);
 router.get('/league/:id/overview', fotmobController.getLeagueOverview);
-router.get('/league/:id/table', fotmobController.getLeagueTable);
 router.get('/league/:id/fixtures', fotmobController.getLeagueFixtures);
 router.get('/league/:id/news', fotmobController.getLeagueNews);
 router.get('/league/:id/difficulty', fotmobController.getFixtureDifficulty);
 
-// Pertandingan detail (setara halaman match FotMob)
+// Pertandingan detail (kompat mentah)
 router.get('/match/:id', fotmobController.getMatchDetail);
 router.get('/match/:id/overview', fotmobController.getMatchOverview);
 router.get('/match/:id/summary', fotmobController.getMatchSummary);
 router.get('/match/:id/shotmap', fotmobController.getMatchShotmap);
+router.get('/match/:id/heatmap', fotmobController.getMatchHeatmap);
 router.get('/match/:id/momentum', fotmobController.getMatchMomentum);
 router.get('/match/:id/h2h', fotmobController.getMatchH2h);
 router.get('/match/:id/media', fotmobController.getMatchMedia);

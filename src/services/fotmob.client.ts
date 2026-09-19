@@ -50,6 +50,7 @@ export async function fotmobGet<T = any>(path: string, options: AxiosRequestConf
       return res.data as T;
     } catch (error: any) {
       lastError = error;
+      if (error?.response?.status === 404) break;
       console.error(`[FotMob] GET ${path} attempt ${attempt}/${config.maxRetries}: ${error.message}`);
       if (attempt < config.maxRetries) {
         await new Promise((r) => setTimeout(r, Math.min(1000 * attempt, 3000)));
@@ -57,6 +58,22 @@ export async function fotmobGet<T = any>(path: string, options: AxiosRequestConf
     }
   }
   throw lastError || new Error(`FotMob GET ${path} failed`);
+}
+
+export async function fetchJson<T = any>(url: string): Promise<T> {
+  const res = await axios({
+    url,
+    method: 'GET',
+    timeout: config.requestTimeout,
+    headers: {
+      'User-Agent': UA,
+      Accept: 'application/json, text/plain, */*',
+      'Accept-Language': 'en-US,en;q=0.9',
+      Referer: 'https://www.fotmob.com/',
+    },
+    maxRedirects: 5,
+  });
+  return res.data as T;
 }
 
 // ── Shared cache dengan TTL ──────────────────────────────────────────────────

@@ -39,21 +39,22 @@ app.use('/api', routes);
 app.get('/', (_req, res) => {
   res.json({
     name: 'Live Football API',
-    version: '3.2.0',
+    version: '3.3.0',
     description: 'Football data API - live scores, stats, xG, lineups & more',
     docs: '/api/docs',
     health: '/api/health',
     endpoints: {
       home: '/api/home',
       live: '/api/matches/live (+ /api/matches/live/stream SSE)',
-      calendar: '/api/matches/date/:date , /api/matches/range?from=&to=',
-      match: '/api/match/:id (+ /overview, /summary, /media, /odds, /tv)',
-      leagues: '/api/leagues , /api/leagues/grouped , /api/league/:id (+ /overview, /table, /fixtures?season=, /news, /difficulty)',
-      team: '/api/team/:id (+ /overview, /fixtures, /results, /news, /stats?tournamentId=)',
-      player: '/api/player/:id (+ /overview)',
+      calendar: '/api/matches/date/:date , /api/matches/range?from=&to= , /api/matches/today|tomorrow|yesterday|notable',
+      match: '/api/match/:id (+ /overview, /summary, /events, /timeline, /statistics, /lineups, /ratings, /commentary, /info, /shotmap, /heatmap, /media, /odds, /tv)',
+      leagues: '/api/leagues , /api/leagues/grouped , /api/league/:id (+ /overview, /table?scope=, /xg-table, /fixtures?season=, /results, /topscorers, /topassists, /topkeepers, /cards, /stats, /news, /difficulty)',
+      team: '/api/team/:id (+ /overview, /squad, /fixtures, /results, /stats?tournamentId=, /transfers, /injuries, /suspensions, /news)',
+      player: '/api/player/:id (+ /overview, /statistics, /matches, /history, /transfers, /injuries, /news, /value)',
       search: '/api/search/all?q= , /api/search/suggest?term=',
-      news: '/api/news/world?page= , /api/news/trending',
-      transfers: '/api/transfers',
+      news: '/api/news/world?page= , /api/news/trending , /api/news/latest|breaking|team/:id|player/:id|competition/:id',
+      transfers: '/api/transfers (+ /latest, /official, /loans, /free, /rumours, /most-expensive)',
+      tools: '/api/tools/fifa-rankings , /api/tools/team-of-the-week , /api/tools/predictor , /api/tools/lineup-builder , /api/tools/tv?matchId=',
     },
   });
 });
