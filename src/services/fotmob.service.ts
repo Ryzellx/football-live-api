@@ -133,13 +133,49 @@ export async function getMatchMedia(matchId: string): Promise<any> {
   return fotmobGet(`/data/matchMedia?matchId=${matchId}&ccode3=IDN`);
 }
 
+
 export async function getMatchOdds(matchId: string): Promise<any> {
   try {
-    return await fotmobGet(`/data/matchOdds?matchId=${matchId}&ccode3=IDN`);
-  } catch {
+    const data = await fotmobGet(
+      `/data/matchOdds?matchId=${matchId}&ccode3=IDN`,
+    );
+
+    console.log(
+      `[MatchOdds] matchId=${matchId} responseType=${Array.isArray(data) ? 'array' : typeof data} keys=${
+        data && typeof data === 'object'
+          ? Object.keys(data).join(',')
+          : ''
+      }`,
+    );
+
+    return data;
+  } catch (error: any) {
+    console.error(
+      `[MatchOdds] matchId=${matchId} error=${error?.message || String(error)} status=${error?.response?.status ?? 'unknown'}`,
+    );
+
     return null;
   }
 }
+
+    console.log(
+      `[MatchOdds] matchId=${matchId} responseType=${Array.isArray(data) ? 'array' : typeof data} keys=${
+        data && typeof data === 'object'
+          ? Object.keys(data).join(',')
+          : ''
+      }`,
+    );
+
+    return data;
+  } catch (error: any) {
+    console.error(
+      `[MatchOdds] matchId=${matchId} error=${error?.message || String(error)} status=${error?.response?.status ?? 'unknown'}`,
+    );
+
+    return null;
+  }
+}
+
 
 export async function getTvListings(matchId: string, countryCode = 'ID'): Promise<any> {
   return fotmobGet(`/data/tvlistings?countryCode=${countryCode}&ids=${matchId}`);
